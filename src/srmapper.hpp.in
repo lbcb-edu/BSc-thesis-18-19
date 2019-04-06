@@ -1,0 +1,2 @@
+#define srmapper_VERSION_MAJOR @srmapper_VERSION_MAJOR@
+#define srmapper_VERSION_MINOR @srmapper_VERSION_MINOR@
