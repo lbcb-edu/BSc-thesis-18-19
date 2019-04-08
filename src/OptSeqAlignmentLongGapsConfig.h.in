@@ -1,0 +1,3 @@
+#define OptSeqAlignmentLongGaps_VERSION_MAJOR @OptSeqAlignmentLongGaps_VERSION_MAJOR@
+#define OptSeqAlignmentLongGaps_VERSION_MINOR @OptSeqAlignmentLongGaps_VERSION_MINOR@
+#define OptSeqAlignmentLongGaps_VERSION_PATCH @OptSeqAlignmentLongGaps_VERSION_PATCH@
