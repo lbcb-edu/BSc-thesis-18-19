@@ -13,13 +13,13 @@
 
 namespace brown {
 
-std::map<char, int> char_to_val = {{'C', 0}, {'A', 1}, {'T', 2}, {'U', 2}, {'G', 3}};
+std::map<char, uint64_t> char_to_val = {{'C', 0}, {'A', 1}, {'T', 2}, {'U', 2}, {'G', 3}};
 
 typedef std::tuple<uint64_t, uint32_t, bool> triplet_t;
 
 struct triplet_hash {
   std::size_t operator() (const triplet_t& k) const noexcept {
-    return std::hash<uint64_t>{}(std::get<0>(k)) ^ std::hash<uint32_t>{}(std::get<1>(k)) ^ std::hash<bool>{}(std::get<2>(k));
+    return std::hash<unsigned long long>{}((unsigned long long)std::get<0>(k)) ^ std::hash<unsigned int>{}((unsigned int)std::get<1>(k)) ^ std::hash<bool>{}(std::get<2>(k));
   }
 };
 
@@ -48,8 +48,8 @@ inline uint64_t value(const char* sequence, uint32_t pos, uint32_t k) {
 }
 
 inline uint64_t value_reverse_complement(const char* sequence,
-                                      uint32_t pos,
-                                      uint32_t k) {
+                                         uint32_t pos,
+                                         uint32_t k) {
 
   uint64_t val = 0;
   for (uint32_t i = k - 1; i < (uint32_t)(-1); --i) {
@@ -65,7 +65,7 @@ void interior_minimizers_fill(
     uint32_t k,
     uint32_t window_length) {
 
-  uint64_t mask = (1 << (2 * k)) - 1;
+  uint64_t mask = ((uint64_t)1 << (2 * k)) - 1;
   uint64_t original;
   uint64_t rev_com;
   uint64_t foriginal;
@@ -134,7 +134,7 @@ void end_minimizers_fill(
     std::function<uint64_t(uint64_t, int, uint64_t)> insert_o,
     std::function<uint64_t(uint64_t, int, uint64_t)> insert_r) {
 
-  uint64_t mask = (1 << (2 * k)) - 1;
+  uint64_t mask = ((uint64_t)1 << (2 * k)) - 1;
   uint64_t original;
   uint64_t rev_com;
   uint64_t m = std::numeric_limits<uint64_t>::max();
@@ -167,12 +167,12 @@ std::vector<triplet_t> minimizers(
     uint32_t window_length) {
 
   if (k > 32) {
-    fprintf(stderr, "[brown::minimizers] error: Largest supported value for k is 32!\n"
+    fprintf(stderr, "[brown::minimizers] error: Largest supported value for k is 32.\n"
                     "  k = %d.\n", k);
     exit(1);
   }
   if (sequence_length < window_length + k - 1) {
-    fprintf(stderr, "[brown::minimizers] error: Sequence length too short for given parameters!\n"
+    fprintf(stderr, "[brown::minimizers] error: Sequence length too short for given parameters.\n"
                     "  Length = %d, k = %d, window length = %d.\n",
         sequence_length, k, window_length);
     exit(1);
