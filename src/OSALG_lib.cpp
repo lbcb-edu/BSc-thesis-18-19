@@ -139,7 +139,7 @@ namespace OSALG {
 		return false;
 	}
 
-	void allocateSubArrayMemory(std::vector<alignment_info> &current_row, std::vector<alignment_info> &previous_row, int seq_len, int L) {
+	void allocate_subarray_memory(std::vector<alignment_info> &current_row, std::vector<alignment_info> &previous_row, int seq_len, int L) {
 		int resize_size = 2 * L + 1;
 
 		for (int i = 0; i < seq_len + 1; ++i) {
@@ -153,9 +153,95 @@ namespace OSALG {
 		}
 	}
 
+	//(i, j) -> (k, l) -> (m, n)
+	void editCIGAR(int i, int j, int k, int l, int m, int n, int current_editing_index, std::vector<std::string> &cigars) {
+		int temp;
+		
+		if (k == m) {
+			temp = n - l;
+
+			if (temp != 0) {
+				cigars[current_editing_index] = std::to_string(temp) + "I" + cigars[current_editing_index];
+			}
+		}
+		else {
+			temp = m - k;
+			
+			if (temp != 0) {
+				cigars[current_editing_index] = std::to_string(temp) + ((l==n) ? "D" : "M") + cigars[current_editing_index];
+			}
+		}
+
+		if (i == k) {
+			temp = l - j;
+
+			if (temp != 0) {
+				cigars[current_editing_index] = std::to_string(temp) + "I" + cigars[current_editing_index];
+			}
+		}
+		else {
+			temp = k - i;
+
+			if (temp != 0) {
+				cigars[current_editing_index] = std::to_string(temp) + ((j == l) ? "D" : "M") + cigars[current_editing_index];
+			}
+		}
+	}
+
+	void process_directional_graph(std::vector<SAVE1_type> const &primary_list, std::vector<SAVE2_type> const &secondary_list,
+		std::vector<std::string> &cigars, int current_editing_index, int primary_list_index,
+		int next_primary_list_index, bool extended_cigar, bool branched) {;
+		
+		if (primary_list_index == 0) return;
+
+		if (primary_list[primary_list_index].pointer.q != 0 && !branched) {
+			cigars.emplace_back(std::string(cigars[cigars.size() - 1]));
+			process_directional_graph(primary_list, secondary_list, cigars, current_editing_index + 1, primary_list_index, secondary_list[primary_list[primary_list_index].pointer.q - 1].p - 1, extended_cigar, true);
+
+			// loop for additional branching
+			int temp_q = secondary_list[primary_list[primary_list_index].pointer.q - 1].q;
+			int temp_edit_index = current_editing_index + 2;
+			while (temp_q != 0) {
+				cigars.emplace_back(std::string(cigars[cigars.size() - 1]));
+				process_directional_graph(primary_list, secondary_list, cigars, temp_edit_index, primary_list_index, secondary_list[temp_q].p - 1, extended_cigar, true);
+
+				temp_q = secondary_list[temp_q].q;
+				temp_edit_index++;
+			}
+		}
+
+		int k, l;
+		if (primary_list[next_primary_list_index].m - primary_list[next_primary_list_index].n > primary_list[primary_list_index].m - primary_list[primary_list_index].n) {
+			k = primary_list[primary_list_index].m;
+			l = primary_list[primary_list_index].m - primary_list[next_primary_list_index].m + primary_list[next_primary_list_index].n;
+		}
+		else {
+			k = primary_list[primary_list_index].n + primary_list[next_primary_list_index].m - primary_list[next_primary_list_index].n;
+			l = primary_list[primary_list_index].n;
+		}
+
+		editCIGAR(primary_list[next_primary_list_index].m, primary_list[next_primary_list_index].n, k, l, primary_list[primary_list_index].m, primary_list[primary_list_index].n,
+			current_editing_index, cigars);
+
+		process_directional_graph(primary_list, secondary_list, cigars, current_editing_index, next_primary_list_index, primary_list[next_primary_list_index].pointer.p - 1, extended_cigar, false);
+	}
+
+
+	void fill_CIGARS_storage(std::vector<SAVE1_type> const &primary_list, std::vector<SAVE2_type> const &secondary_list, std::vector<std::string> &cigars,
+		std::string const &seq1, std::string const &seq2, bool extended_cigar) {
+
+		for (int i = primary_list.size() - 1; i >= 0; --i) {
+			if (primary_list[i].m != seq1.length() || primary_list[i].n != seq2.length())
+				break;
+
+			cigars.emplace_back(std::string());
+			process_directional_graph(primary_list, secondary_list, cigars, cigars.size() - 1, i, primary_list[i].pointer.p - 1, extended_cigar, false);
+		}
+	}
+
 	int long_gaps_alignment(std::string const &seq1, std::string const &seq2, int L,
 						std::vector<int> const &u, std::vector<int> const &v, std::vector<std::string> &cigars,
-						int match_score, int mismatch_score) {
+						int match_score, int mismatch_score, bool extended_cigar) {
 
 		if (v.size() < L || u.size() < L) {
 			return -1;
@@ -169,7 +255,7 @@ namespace OSALG {
 		std::vector<alignment_info> current_row(seq2.length() + 1);
 
 
-		allocateSubArrayMemory(current_row, previous_row, seq2.length(), L)
+		allocate_subarray_memory(current_row, previous_row, seq2.length(), L)
 
 		init_first_row(previous_row, L, u, v);
 
@@ -225,6 +311,8 @@ namespace OSALG {
 
 		SAVE2_type p_last;
 		adr_function(p_last, seq1.length(), seq2.length(), current_row, primary_list, L);
+
+		fill_CIGARS_storage(primary_list, secondary_list, cigars, seq1, seq2, extended_cigar);
 
 		return 0;
 	}
