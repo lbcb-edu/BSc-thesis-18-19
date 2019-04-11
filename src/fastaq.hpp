@@ -3,10 +3,18 @@
 #include <string>
 #include <vector>
 #include <limits>
+#include <cstdint>
 
 #include "bioparser/bioparser.hpp"
 
 namespace fastaq {
+
+typedef struct {
+  uint32_t num;
+  double avg;
+  uint32_t max;
+  uint32_t min;
+} stats;
   
 class FastAQ {
 public:
@@ -29,7 +37,7 @@ public:
 
   static void parse(
     std::vector<std::unique_ptr<FastAQ>> &fastaq_objects,
-    const std::string file, const int file_format) {
+    const std::string file, const uint32_t file_format) {
       if (file_format == 1) {
         auto fasta_parser = bioparser::createParser<bioparser::FastaParser, FastAQ>(file);
         fasta_parser->parse_objects(fastaq_objects, -1);
@@ -39,14 +47,14 @@ public:
       }
     }
 
-  static void print_statistics(
+  static stats print_statistics(
     const std::vector<std::unique_ptr<FastAQ>> &fastaq_objects,
     const std::string file) {
-      int num = fastaq_objects.size();
+      uint32_t num = fastaq_objects.size();
       double average = 0;
       uint32_t max = 0;
-      uint32_t min = std::numeric_limits<int>::max();
-      for (int i = 0; i < num; i++) {
+      uint32_t min = std::numeric_limits<uint32_t>::max();
+      for (uint32_t i = 0; i < num; i++) {
         average += fastaq_objects[i]->sequence.size();
         if (fastaq_objects[i]->sequence.size() > max) {
           max = fastaq_objects[i]->sequence.size();
@@ -57,11 +65,12 @@ public:
       }
       average /= num;
       fprintf(stderr, "Stats for: %s\n"
-                      "  Number of sequences: %d\n"
+                      "  Number of sequences: %u\n"
                       "  Average length:      %g\n"
-                      "  Maximum length:      %d\n"
-                      "  Minimum length:      %d\n",
+                      "  Maximum length:      %u\n"
+                      "  Minimum length:      %u\n",
                       file.c_str(), num, average, max, min);
+      return {num, average, max, min};
   }
 };
 

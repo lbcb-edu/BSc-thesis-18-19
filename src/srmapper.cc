@@ -49,9 +49,11 @@ static struct option long_options[] = {
 void help(void) {
   printf("srmapper - tool for mapping short reads to reference genome.\n\n"
 
-         "Usage: srmapper [OPTIONS] [reads] reference\n"
-         "  reads     - FASTA/FASTQ file containing a set of fragments\n"
+         "Usage: srmapper [OPTIONS] reference [reads]\n"
          "  reference - FASTA file containing reference genome\n\n"
+         "  reads     - one or two FASTA/FASTQ file containing a set of fragments\n"
+         "              one = single-read sequencing reads\n"
+         "              two = paired-end read sequencing reads\n"
 
          "Supported file extensions: .fasta\n"
          "                           .fa\n"
@@ -306,56 +308,95 @@ int main(int argc, char **argv) {
       case 'f': {
         f = atof(optarg);
         if (f < 0.0f || f > 1.0f) {
-          fprintf(stderr, "[mapper] error: f must be from [0, 1].\n"); 
+          fprintf(stderr, "[srmapper] error: f must be from [0, 1].\n"); 
           exit(1); 
         }
         break;
       }
       default: {
-        fprintf(stderr, "[mapper] error: Unknown option. Type %s --help for usage.\n", argv[0]);
+        fprintf(stderr, "[srmapper] error: Unknown option. Type %s --help for usage.\n", argv[0]);
         exit(1);
       }
     }
   }
 
-  if (argc - optind != 3) {
-    fprintf(stderr, "[srmapper] error: Expected 3 mapping arguments! Use --help for usage.\n");
+  if (argc - optind > 3 || argc - optind < 2) {
+    fprintf(stderr, "[srmapper] error: Expected read(s) and reference! Use --help for usage.\n");
     exit(1);
   }
 
-  fprintf(stderr, "Loading reads and reference...\n");
+  fprintf(stderr, "\nMapping process started with parameters:\n"
+                  "  k             = %u\n"
+                  "  window length = %u\n"
+                  "  top f freq    = %g\n",
+                  k, w, f);
 
-  std::string reads_file1(argv[optind]);
-  std::string reads_file2(argv[optind + 1]);
-  std::string reference_file(argv[optind + 2]);
+  fprintf(stderr, "\nLoading reference... ");
 
-  if (!(check_extension(reads_file1, fasta_formats) || check_extension(reads_file1, fastq_formats))
-      || !(check_extension(reads_file2, fasta_formats) || check_extension(reads_file2, fastq_formats))
-      || !check_extension(reference_file, fasta_formats)) {
-    fprintf(stderr, "[srmapper] error: Unsupported format(s). Check --help for supported file formats.\n");
-    exit(1);
+  std::string reference_file(argv[optind]);
+  if (!check_extension(reference_file, fasta_formats)) {
+      fprintf(stderr, "[srmapper] error: Unsupported reference file format. Check --help for supported file formats.\n");
+      exit(1);
   }
-
-  paired_reads_t paired_reads;
-  // std::vector<std::unique_ptr<fastaq::FastAQ>> reads1;
-  // std::vector<std::unique_ptr<fastaq::FastAQ>> reads2;
   std::vector<std::unique_ptr<fastaq::FastAQ>> reference;
-  fastaq::FastAQ::parse(paired_reads.first, reads_file1, check_extension(reads_file1, fasta_formats));
-  fastaq::FastAQ::parse(paired_reads.second, reads_file2, check_extension(reads_file2, fasta_formats));
   fastaq::FastAQ::parse(reference, reference_file, check_extension(reference_file, fasta_formats));
 
-  fastaq::FastAQ::print_statistics(paired_reads.first, reads_file1);
-  fastaq::FastAQ::print_statistics(paired_reads.second, reads_file2);
-  fastaq::FastAQ::print_statistics(reference, reference_file);
+  fprintf(stderr, "\rLoaded reference.        \n"
+                  "\nIndexing reference... ");
 
   std::vector<minimizer_t> t_minimizers = brown::minimizers(reference[0]->sequence.c_str(), 
                                                             reference[0]->sequence.size(), 
                                                             k, w);
-
   prep_ref(t_minimizers, f);
   std::unordered_map<uint64_t, index_pos_t> ref_index = index_ref(t_minimizers);
 
-  map_paired(ref_index, t_minimizers, reference, paired_reads, k, w);
+  fprintf(stderr, "\rIndexed reference.        \n");
+  
+  fastaq::FastAQ::print_statistics(reference, reference_file);
+  
+  if (argc - optind == 3) {
+    fprintf(stderr, "\nLoading paired-end reads... ");
+
+    std::string reads_file1(argv[optind + 1]);
+    std::string reads_file2(argv[optind + 2]);
+
+    if (!(check_extension(reads_file1, fasta_formats) || check_extension(reads_file1, fastq_formats))
+        || !(check_extension(reads_file2, fasta_formats) || check_extension(reads_file2, fastq_formats))) {
+      fprintf(stderr, "[srmapper] error: Unsupported paired-end reads formats. Check --help for supported file formats.\n");
+      exit(1);
+    }
+    paired_reads_t paired_reads;
+    fastaq::FastAQ::parse(paired_reads.first, reads_file1, check_extension(reads_file1, fasta_formats));
+    fastaq::FastAQ::parse(paired_reads.second, reads_file2, check_extension(reads_file2, fasta_formats));
+
+    fprintf(stderr, "\rLoaded paired-end reads.        \n");
+
+    fastaq::stats pr1_stats = fastaq::FastAQ::print_statistics(paired_reads.first, reads_file1);
+    fastaq::stats pr2_stats = fastaq::FastAQ::print_statistics(paired_reads.second, reads_file2);
+
+    if (pr1_stats.num != pr2_stats.num) {
+      fprintf(stderr, "[srmapper] error: Paired-end read files must have equal number of reads (pairs).\n");
+    }
+
+    map_paired(ref_index, t_minimizers, reference, paired_reads, k, w);
+  } else {
+    fprintf(stderr, "\nLoading reads... ");
+    std::string reads_file(argv[optind + 1]);
+
+    if (!(check_extension(reads_file, fasta_formats) || check_extension(reads_file, fastq_formats))) {
+      fprintf(stderr, "[srmapper] error: Unsupported format. Check --help for supported file formats.\n");
+      exit(1);
+    }
+
+    std::vector<std::unique_ptr<fastaq::FastAQ>> reads;
+    fastaq::FastAQ::parse(reads, reads_file, check_extension(reads_file, fasta_formats));
+
+    fprintf(stderr, "\rLoaded reads.        \n");
+    
+    fastaq::FastAQ::print_statistics(reads, reads_file);
+
+    // map_single(ref_index, t_minimizers, reference, reads, k, w);
+  }
 
   return 0;
 }
