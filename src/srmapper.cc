@@ -4,8 +4,12 @@
 #include <cctype>
 #include <cstdint>
 #include <iostream>
+#include <iterator>
 #include <string>
+#include <vector>
 #include <set>
+#include <queue>
+#include <deque>
 #include <unordered_map>
 #include <tuple>
 #include <utility>
@@ -23,6 +27,12 @@ typedef std::tuple<uint64_t, uint32_t, bool> minimizer_t;
 typedef std::pair<uint32_t, uint32_t> index_pos_t;
 // hit: query position, reference position, relative strand
 typedef std::tuple<uint32_t, uint32_t, bool> minimizer_hit_t;
+// paired read
+typedef std::pair<std::vector<std::unique_ptr<fastaq::FastAQ>>, std::vector<std::unique_ptr<fastaq::FastAQ>>> paired_reads_t;
+// paired read minimizers
+typedef std::pair<std::vector<minimizer_t>, std::vector<minimizer_t>> paired_minimizers_t;
+// paired read hits
+typedef std::pair<std::vector<minimizer_hit_t>, std::vector<minimizer_hit_t>> paired_hits_t;
 
 const std::set<std::string> fasta_formats = {".fasta", ".fa", ".fasta.gz", ".fa.gz"};
 const std::set<std::string> fastq_formats = {".fastq", ".fq", ".fastq.gz", ".fq.gz"};
@@ -39,7 +49,7 @@ static struct option long_options[] = {
 void help(void) {
   printf("srmapper - tool for mapping short reads to reference genome.\n\n"
 
-         "Usage: srmapper [OPTIONS] [reads reference]   start mapper\n"
+         "Usage: srmapper [OPTIONS] [reads] reference\n"
          "  reads     - FASTA/FASTQ file containing a set of fragments\n"
          "  reference - FASTA file containing reference genome\n\n"
 
@@ -85,6 +95,16 @@ bool check_extension(const std::string& filename, const std::set<std::string>& e
     }
   }
   return false;
+}
+
+bool hit_ordering(const minimizer_hit_t& a, const minimizer_hit_t& b) {
+  if (std::get<2>(a) == std::get<2>(b)) {
+    if(std::get<1>(a) == std::get<1>(b)) {
+      return std::get<0>(a) < std::get<0>(b);
+    }
+    return std::get<1>(a) < std::get<1>(b);
+  }
+  return std::get<2>(a) < std::get<2>(b);
 }
 
 void prep_ref(std::vector<minimizer_t>& t_minimizers, const float f) {
@@ -160,12 +180,103 @@ std::vector<minimizer_hit_t> find_minimizer_hits(
               std::get<1>(t_minimizers[found->second.first + i]),
               1);
         }
-        
       }
     }
   }
 
   return hits;
+}
+
+void map_paired(std::unordered_map<uint64_t, index_pos_t>& ref_index, std::vector<minimizer_t>& t_minimizers,
+         std::vector<std::unique_ptr<fastaq::FastAQ>>& reference, paired_reads_t& paired_reads,
+         uint32_t k, uint32_t w) {
+  for (uint32_t i = 0; i < paired_reads.first.size(); ++i) {
+    paired_minimizers_t pminimizers(brown::minimizers(paired_reads.first[i]->sequence.c_str(),
+                                                      paired_reads.first[i]->sequence.size(),
+                                                      k, w),
+                                    brown::minimizers(paired_reads.second[i]->sequence.c_str(),
+                                                      paired_reads.second[i]->sequence.size(),
+                                                      k, w));
+    paired_hits_t phits(find_minimizer_hits(ref_index, t_minimizers, pminimizers.first),
+                        find_minimizer_hits(ref_index, t_minimizers, pminimizers.second));
+    std::sort(phits.first.begin(), phits.first.end(), hit_ordering);
+    std::sort(phits.second.begin(), phits.second.end(), hit_ordering);
+    // std::cerr << "phits first size " << phits.first.size() << std::endl;
+    // for (const auto& phf : phits.first) {
+    //   std::cerr << std::get<0>(phf) << ", " << std::get<1>(phf) << ", " << std::get<2>(phf) << std::endl;
+    // }
+    // std::cerr << "phits second size " << phits.second.size() << std::endl;
+    // for (const auto& phs : phits.second) {
+    //   std::cerr << std::get<0>(phs) << ", " << std::get<1>(phs) << ", " << std::get<2>(phs) << std::endl;
+    // }
+    // std::cerr << std::endl;
+
+    std::vector<std::vector<minimizer_hit_t>> forward_first;
+    auto h = phits.first.begin();
+    for (; h != phits.first.end() && std::get<2>(*h) == 0; ++h) {
+      uint32_t curr_pos = std::get<1>(*h);
+      auto h_iter = h;
+      auto h_next = h;
+      for (; h_iter != phits.first.end() && std::get<1>(*h_iter) < curr_pos + 200; ++h_iter) {
+        if (std::get<1>(*h_iter) > curr_pos + 100 && h_next == h) h_next = h_iter; 
+      }
+      if (h != h_iter) forward_first.emplace_back(h, h_iter);
+      h = h_next;
+    }
+    std::vector<std::vector<minimizer_hit_t>> reverse_first;
+    for (; h != phits.first.end(); ++h) {
+      uint32_t curr_pos = std::get<1>(*h);
+      auto h_iter = h;
+      auto h_next = h;
+      for (; h_iter != phits.first.end() && std::get<1>(*h_iter) < curr_pos + 200; ++h_iter) {
+        if (std::get<1>(*h_iter) > curr_pos + 100 && h_next == h) h_next = h_iter; 
+      }
+      if (h != h_iter) reverse_first.emplace_back(h, h_iter);
+      h = h_next;
+    }
+    std::vector<std::vector<minimizer_hit_t>> forward_second;
+    h = phits.second.begin();
+    for (; h != phits.second.end() && std::get<2>(*h) == 0; ++h) {
+      uint32_t curr_pos = std::get<1>(*h);
+      auto h_iter = h;
+      auto h_next = h;
+      for (; h_iter != phits.second.end() && std::get<1>(*h_iter) < curr_pos + 200; ++h_iter) {
+        if (std::get<1>(*h_iter) > curr_pos + 100 && h_next == h) h_next = h_iter; 
+      }
+      if (h != h_iter) forward_second.emplace_back(h, h_iter);
+      h = h_next;
+    }
+    std::vector<std::vector<minimizer_hit_t>> reverse_second;
+    for (; h != phits.second.end(); ++h) {
+      uint32_t curr_pos = std::get<1>(*h);
+      auto h_iter = h;
+      auto h_next = h;
+      for (; h_iter != phits.second.end() && std::get<1>(*h_iter) < curr_pos + 200; ++h_iter) {
+        if (std::get<1>(*h_iter) > curr_pos + 100 && h_next == h) h_next = h_iter; 
+      }
+      if (h != h_iter) reverse_second.emplace_back(h, h_iter);
+      h = h_next;
+    }
+    // if (!(forward_first.size() > 1 && reverse_second.size() > 1 || forward_second.size() > 1 && reverse_first.size() > 1)) continue;
+    // std::cerr << "forward_first" << std::endl;
+    // for (const auto& ff : forward_first) {
+    //   std::cerr << std::get<1>(ff[0]) << ", " << ff.size() << std::endl;
+    // }
+    // std::cerr << "forward_second" << std::endl;
+    // for (const auto& fs : forward_second) {
+    //   std::cerr << std::get<1>(fs[0]) << ", " << fs.size() << std::endl;
+    // }
+    // std::cerr << "reverse_first" << std::endl;
+    // for (const auto& rf : reverse_first) {
+    //   std::cerr << std::get<1>(rf[0]) << ", " << rf.size() << std::endl;
+    // }
+    // std::cerr << "reverse_second" << std::endl;
+    // for (const auto& rs : reverse_second) {
+    //   std::cerr << std::get<1>(rs[0]) << ", " << rs.size() << std::endl;
+    // }
+    // std::cerr << std::endl;
+    // std::cout << paired_reads.first[i]->name << std::endl;
+  }
 }
 
 int main(int argc, char **argv) {
@@ -225,14 +336,16 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-
-  std::vector<std::unique_ptr<fastaq::FastAQ>> reads1;
-  std::vector<std::unique_ptr<fastaq::FastAQ>> reads2;
+  paired_reads_t paired_reads;
+  // std::vector<std::unique_ptr<fastaq::FastAQ>> reads1;
+  // std::vector<std::unique_ptr<fastaq::FastAQ>> reads2;
   std::vector<std::unique_ptr<fastaq::FastAQ>> reference;
-  // fastaq::FastAQ::parse(reads1, reads_file1, check_extension(reads_file1, fasta_formats));
-  // fastaq::FastAQ::parse(reads2, reads_file2, check_extension(reads_file2, fasta_formats));
+  fastaq::FastAQ::parse(paired_reads.first, reads_file1, check_extension(reads_file1, fasta_formats));
+  fastaq::FastAQ::parse(paired_reads.second, reads_file2, check_extension(reads_file2, fasta_formats));
   fastaq::FastAQ::parse(reference, reference_file, check_extension(reference_file, fasta_formats));
 
+  fastaq::FastAQ::print_statistics(paired_reads.first, reads_file1);
+  fastaq::FastAQ::print_statistics(paired_reads.second, reads_file2);
   fastaq::FastAQ::print_statistics(reference, reference_file);
 
   std::vector<minimizer_t> t_minimizers = brown::minimizers(reference[0]->sequence.c_str(), 
@@ -242,9 +355,7 @@ int main(int argc, char **argv) {
   prep_ref(t_minimizers, f);
   std::unordered_map<uint64_t, index_pos_t> ref_index = index_ref(t_minimizers);
 
-  // std::vector<minimizer_t> q_minimizers = brown::minimizers(reads[0]->sequence.c_str()
-  //                                                           reads[0]->sequence.size(),
-  //                                                           k, w);
+  map_paired(ref_index, t_minimizers, reference, paired_reads, k, w);
 
   return 0;
 }
