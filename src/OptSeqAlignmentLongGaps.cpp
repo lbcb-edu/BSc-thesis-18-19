@@ -1,7 +1,11 @@
 #include <getopt.h>
 #include <stdio.h>
+#include <string>
+#include <vector>
 
 #include "bioparser/bioparser.hpp"
+
+#include "OSALG_lib.h"
 
 #include "OptSeqAlignmentLongGapsConfig.h"
 
@@ -138,6 +142,32 @@ int main(int argc, char **argv) {
 	}
 
 	std::vector<std::unique_ptr<FASTAQEntity>> ref_entries = readFASTAFile(secondFilePath);
+
+	for(auto const &query : query_entries) {
+		for(auto const &ref : ref_entries) {
+			std::vector<std::string> cigars;
+
+			OSALG::long_gaps_alignment(query->sequence, ref->sequence, cigars);
+
+			printf("----------------------");
+			printf("ref: %s\n", (ref->name).c_str());
+			printf("query: %s\n", (query->name).c_str());
+			printf("cigars: \n");
+			for(auto const &cig : cigars) {
+				printf("%s\n", cig.c_str());
+			}
+			printf("----------------------");
+		}
+	}
+
+	/*
+	std::vector<std::string> cigars;
+	OSALG::long_gaps_alignment("AGT", "TGAGTT", cigars);
+
+	for(int i = 0; i < cigars.size(); ++i) {
+		printf("%s\n", cigars[i].c_str());
+	}
+	*/
 
 	return 0;
 }

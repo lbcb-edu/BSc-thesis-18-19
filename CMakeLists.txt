@@ -8,7 +8,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 #version
 set (OptSeqAlignmentLongGaps_VERSION_MAJOR 0)
 set (OptSeqAlignmentLongGaps_VERSION_MINOR 1)
-set (OptSeqAlignmentLongGaps_VERSION_PATCH 0)
+set (OptSeqAlignmentLongGaps_VERSION_PATCH 1)
 
 set(CMAKE_CXX_STANDARD 11)
 
@@ -21,5 +21,7 @@ include_directories("${PROJECT_BINARY_DIR}")
 
 add_subdirectory(vendor/bioparser EXCLUDE_FROM_ALL)
 
+add_library(OSALG_lib ${PROJECT_SOURCE_DIR}/src/OSALG_lib.cpp)
+
 add_executable(OptSeqAlignmentLongGaps src/OptSeqAlignmentLongGaps.cpp)
-target_link_libraries(OptSeqAlignmentLongGaps bioparser)
+target_link_libraries(OptSeqAlignmentLongGaps bioparser OSALG_lib)
