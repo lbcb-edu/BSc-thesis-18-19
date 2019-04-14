@@ -1,0 +1,2 @@
+#define long_reads_mapper_VERSION_MAJOR @long_reads_mapper_VERSION_MAJOR@
+#define long_reads_mapper_VERSION_MINOR @long_reads_mapper_VERSION_MINOR@
