@@ -2,7 +2,7 @@
 #include <algorithm>
 #include <vector>
 #include <limits>
-#include "OSALG_lib.h"
+#include "OSALG_lib_custom.h"
 
 namespace OSALG {
 
