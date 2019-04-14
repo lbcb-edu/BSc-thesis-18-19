@@ -19,4 +19,7 @@ configure_file (
 
 include_directories("${PROJECT_BINARY_DIR}")
 
+add_subdirectory(vendor/bioparser EXCLUDE_FROM_ALL)
+
 add_executable(OptSeqAlignmentLongGaps src/OptSeqAlignmentLongGaps.cpp)
+target_link_libraries(OptSeqAlignmentLongGaps bioparser)

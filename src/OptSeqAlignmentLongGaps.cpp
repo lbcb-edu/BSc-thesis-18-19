@@ -1,12 +1,42 @@
 #include <getopt.h>
 #include <stdio.h>
 
+#include "bioparser/bioparser.hpp"
+
 #include "OptSeqAlignmentLongGapsConfig.h"
 
 struct option options[] = {
 	{"version", no_argument, 0, 'v'},
 	{"help", no_argument, 0, 'h'}
 };
+
+class FASTAQEntity {
+	
+	public:
+		std::string name;
+		std::string sequence;
+		std::string quality;
+		
+		FASTAQEntity(
+			const char *name, uint32_t name_length,
+			const char *sequence, uint32_t sequence_length) {
+
+			(this->name).assign(name, name_length);
+
+			(this->sequence).assign(sequence, sequence_length);
+		}
+
+		FASTAQEntity(
+			const char* name, uint32_t name_length,
+			const char* sequence, uint32_t sequence_length,
+			const char* quality, uint32_t quality_length) : FASTAQEntity(name, name_length, sequence, sequence_length) {
+			
+			(this->quality).assign(quality, quality_length);
+		}
+};
+
+std::vector<std::string> FASTAExtensionVector{".fasta", ".fa", ".fasta.gz", ".fa.gz"};
+std::vector<std::string> FASTQExtensionVector{".fastq", ".fq", ".fastq.gz", ".fq.gz"};
 
 void version() {
 	printf("v%d.%d.%d\n",
@@ -18,6 +48,44 @@ void version() {
 void help() {
 	//TO DO
 	printf("help\n");
+}
+
+bool endsWith(std::string const &fullString, std::string const &ending) {
+	if(fullString.length() < ending.length()) return false;
+	
+	return (fullString.compare(fullString.length() - ending.length(), ending.length(), ending) == 0);
+}
+
+bool isExtensionMemberOfVector(std::string const &str, std::vector<std::string> const vec) {
+	for(auto const& s : vec) {
+		if(endsWith(str, s)) return true;
+	}
+
+	return false;
+}
+
+std::vector<std::unique_ptr<FASTAQEntity>> readFASTQFile(std::string const &filePath) {
+	std::vector<std::unique_ptr<FASTAQEntity>> fastq_objects;
+	auto fastq_parser = bioparser::createParser<bioparser::FastqParser, FASTAQEntity>(filePath);
+
+	uint64_t size_in_bytes = 500 * 1024 * 1024; // 500 MB
+	while (true) {
+		auto status = fastq_parser->parse(fastq_objects, size_in_bytes);
+		if (status == false) {
+			break;
+		}
+	}
+
+	return fastq_objects;
+}
+
+std::vector<std::unique_ptr<FASTAQEntity>> readFASTAFile(std::string const &filePath) {
+	std::vector<std::unique_ptr<FASTAQEntity>> fasta_objects;
+	auto fasta_parser = bioparser::createParser<bioparser::FastaParser, FASTAQEntity>(filePath);
+	
+	fasta_parser->parse(fasta_objects, -1);
+	
+	return fasta_objects;
 }
 
 int main(int argc, char **argv) {
@@ -42,6 +110,34 @@ int main(int argc, char **argv) {
 				return 1;
 		}
 	}
+
+	if(argc - optind < 2) {
+		fprintf(stderr, "Program requires more than one argument!\n");
+		fprintf(stderr, "Use \"-h\" or \"--help\" for more information.\n");
+		return 1;
+	}
+
+	std::string firstFilePath = argv[optind];
+	std::string secondFilePath = argv[optind + 1];
+
+	bool isFirstFASTA = isExtensionMemberOfVector(firstFilePath, FASTAExtensionVector);
+
+	if(!((isFirstFASTA || isExtensionMemberOfVector(firstFilePath, FASTQExtensionVector))
+		&& isExtensionMemberOfVector(secondFilePath, FASTAExtensionVector))) {
+		fprintf(stderr, "One or more given arguments are not valid file format!\n");
+		fprintf(stderr, "Use \"-h\" or \"--help\" for more information.\n");
+		return 1;
+	}
+
+
+	std::vector<std::unique_ptr<FASTAQEntity>> query_entries;
+	if(isFirstFASTA) {
+		query_entries = readFASTAFile(firstFilePath);
+	} else {
+		query_entries = readFASTQFile(firstFilePath);
+	}
+
+	std::vector<std::unique_ptr<FASTAQEntity>> ref_entries = readFASTAFile(secondFilePath);
 
 	return 0;
 }
