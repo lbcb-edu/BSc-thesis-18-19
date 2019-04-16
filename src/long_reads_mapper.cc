@@ -32,6 +32,8 @@ typedef std::tuple<unsigned int, unsigned int, bool> triplet_t;
 typedef std::pair<unsigned int, unsigned int> minimizer_index_t;
 // query position, reference position, relative strand
 typedef std::tuple<unsigned int, unsigned int, bool> minimizer_hit_t;
+//number of hits, position
+typedef std::tuple<unsigned int, unsigned int> stat;
 
 static struct option long_options[] = {
   {"help", no_argument, NULL, 'h'},
@@ -194,7 +196,15 @@ bool contains_extension(const std::string file, const std::set<std::string> &ext
 
 
 
-
+bool hit_ordering(const minimizer_hit_t& a, const minimizer_hit_t& b) {
+  if (std::get<2>(a) == std::get<2>(b)) {
+    if(std::get<0>(a) == std::get<0>(b)){
+      return std::get<1>(a) < std::get<1>(b);
+    }
+    return std::get<0>(a) < std::get<0>(b);
+  }
+  return std::get<2>(a) < std::get<2>(b);
+}
 
 
 void prep_ref(std::vector<triplet_t>& t_minimizers, const float f) {
@@ -258,35 +268,65 @@ std::unordered_map<unsigned int, minimizer_index_t> index_ref(
 }
 
 
-std::unordered_map<unsigned int, std::vector<minimizer_hit_t>> find_minimizer_hits(
+// std::unordered_map<unsigned int, std::vector<minimizer_hit_t>> find_minimizer_hits(
+//     const std::unordered_map<unsigned int, minimizer_index_t>& ref_index,
+//     const std::vector<triplet_t>& t_minimizers,
+//     const std::vector<triplet_t>& q_minimizers,
+//     int k_value) {
+
+//   std::unordered_map<unsigned int, minimizer_hit_t> hits;
+
+//   for (const auto& minimizer : q_minimizers) {
+//     auto found = ref_index.find(std::get<0>(minimizer));
+//     if (found == ref_index.end()) continue;
+
+//     for (unsigned int i = 0; i < found->second.second; i++){
+//       bool srand = false;
+//       if (std::get<2>(minimizer) == std::get<2>(t_minimizers[found->second.first + i])) bool = true;
+//       int position = std::get<1>(t_minimizers[found->second.first + i]);
+
+//       if(position < k_value){
+//         hits[0].emplace_back(std::get<1>(minimizer),
+//           std::get<1>(t_minimizers[found->second.first + i]), srand);
+//       }else{
+//         int key = position / k_value;
+//         hits[key].emplace_back(std::get<1>(minimizer),
+//           std::get<1>(t_minimizers[found->second.first + i]), srand);
+//         hits[key - 1].emplace_back(std::get<1>(minimizer),
+//           std::get<1>(t_minimizers[found->second.first + i]), srand);
+//       }
+//     }
+//   }
+//   return hits;
+// }
+
+std::vector<minimizer_hit_t> find_minimizer_hits(
     const std::unordered_map<unsigned int, minimizer_index_t>& ref_index,
     const std::vector<triplet_t>& t_minimizers,
-    const std::vector<triplet_t>& q_minimizers,
-    int k_value) {
+    const std::vector<triplet_t>& q_minimizers) {
 
-  std::unordered_map<unsigned int, minimizer_hit_t> hits;
+  std::vector<minimizer_hit_t> hits;
 
   for (const auto& minimizer : q_minimizers) {
     auto found = ref_index.find(std::get<0>(minimizer));
-    if (found == ref_index.end()) continue;
-
-    for (unsigned int i = 0; i < found->second.second; i++){
-      bool srand = false;
-      if (std::get<2>(minimizer) == std::get<2>(t_minimizers[found->second.first + i])) bool = true;
-      int position = std::get<1>(t_minimizers[found->second.first + i]);
-
-      if(position < k_value){
-        hits[0].emplace_back(std::get<1>(minimizer),
-          std::get<1>(t_minimizers[found->second.first + i]), srand);
-      }else{
-        int key = position / k_value;
-        hits[key].emplace_back(std::get<1>(minimizer),
-          std::get<1>(t_minimizers[found->second.first + i]), srand);
-        hits[key - 1].emplace_back(std::get<1>(minimizer),
-          std::get<1>(t_minimizers[found->second.first + i]), srand);
+    if (found != ref_index.end()) {
+      for (unsigned int i = 0; i < found->second.second; i++) {
+        if (std::get<2>(minimizer) == std::get<2>(t_minimizers[found->second.first + i])) {
+          hits.emplace_back(
+            std::get<1>(minimizer),
+            std::get<1>(t_minimizers[found->second.first + i]),
+            0);  
+        } else {
+          hits.emplace_back(
+            std::get<1>(minimizer),
+            std::get<1>(t_minimizers[found->second.first + i]),
+            1);
+        }
+        
       }
     }
   }
+
   return hits;
 }
 
@@ -305,16 +345,28 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
 
     if(fastaq_objects1[fobj]->sequence.size() < 2 * k_value) continue;
 
-    std::vector<triplet_t> q_minimizers = brown::minimizers(
+    std::vector<triplet_t> start_minimizers = brown::minimizers(
       fastaq_objects1[fobj]->sequence.c_str(), fastaq_objects1[fobj]->sequence.size(), k, window_length);
 
-    std::unordered_map<unsigned int, minimizer_hit_t> hits = find_minimizer_hits(ref_index, t_minimizers, q_minimizers, k_value);
+    std::vector<minimizer> start_minimizers = brown::minimizers(fastaq_objects1[fobj]->sequence.c_str(), k_value, k, window_length);
+    std::vector<minimizer> end_minimizers = brown::minimizers(fastaq_objects1[fobj]->sequence.substr(sequence_length - k_value - 1, k_value).c_str(), k_value, k, window_length);
+
+    // std::unordered_map<unsigned int, minimizer_hit_t> start_hits = find_minimizer_hits(ref_index, t_minimizers, q_minimizers, k_value);
+    // std::unordered_map<unsigned int, minimizer_hit_t> end_hits = find_minimizer_hits(ref_index, t_minimizers, q_minimizers, k_value);
+
+    std::vector<minimizer_hit_t> start_hits = find_minimizer_hits(ref_index, t_minimizers, start_minimizers);
+    std::vector<minimizer_hit_t> end_hits = find_minimizer_hits(ref_index, t_minimizers, end_minimizers);
+
+    std::sort(start_hits.begin(), start_hits.end(), hit_ordering);
+    std::sort(end_hits.begin(), end_hits.end(), hit_ordering);
 
 
-    
 
 
-    std::sort(hits.begin(), hits.end(), hit_ordering);
+
+
+
+
 
     std::vector<std::pair<region_t, unsigned int>> regions;
 
