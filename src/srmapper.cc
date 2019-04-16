@@ -278,6 +278,32 @@ void map_paired(std::unordered_map<uint64_t, index_pos_t>& ref_index, std::vecto
     // }
     // std::cerr << std::endl;
     // std::cout << paired_reads.first[i]->name << std::endl;
+
+    auto h_vec = reverse_second.begin();
+    uint32_t fpair_count = 0;
+    for (const auto& ff : forward_first) {
+      while (h_vec != reverse_second.end() 
+             && std::get<1>(ff.front()) + 700 < std::get<1>(h_vec->front())
+             && std::get<1>(ff.front()) + 900 > std::get<1>(h_vec->front())) {
+        ++fpair_count;
+        ++h_vec;
+      }
+      if (h_vec == reverse_second.end()) break;
+    }
+    h_vec = reverse_first.begin();
+    uint32_t rpair_count = 0;
+    for (const auto& fs : forward_second) {
+      while (h_vec != reverse_first.end() 
+             && std::get<1>(fs.front()) + 700 < std::get<1>(h_vec->front())
+             && std::get<1>(fs.front()) + 900 > std::get<1>(h_vec->front())) {
+        ++rpair_count;
+        ++h_vec;
+      }
+      if (h_vec == reverse_first.end()) break;
+    }
+    if (fpair_count && rpair_count) std::cout << "BOTH " << fpair_count << ", " << rpair_count << std::endl;
+    else if (fpair_count) std::cout << "FF " << fpair_count << std::endl;
+    else if (rpair_count) std::cout << "FS " << rpair_count << std::endl;
   }
 }
 
