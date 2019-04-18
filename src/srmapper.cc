@@ -45,7 +45,8 @@ static struct option long_options[] = {
   {"frequency", required_argument, NULL, 'f'},
   {"insert_size", required_argument, NULL, 'i'},
   {"region_size", required_argument, NULL, 'r'},
-  {"threshold", required_argument, NULL, 't'},
+  {"threads", required_argument, NULL, 't'},
+  {"threshold", required_argument, NULL, 'T'},
   {NULL, no_argument, NULL, 0}
 };
 
@@ -97,7 +98,10 @@ void help(void) {
          "  -r  or  --region_size    <uint>\n"
          "                             default: 215\n"
          "                             region size to count hits from\n"
-         "  -t  or  --threshold      <uint>\n"
+         "  -t  or  --threads        <uint>\n"
+         "                             default: 3\n"
+         "                             number of threads\n"
+         "  -T  or  --threshold      <uint>\n"
          "                             default: 1\n"
          "                             number of hits needed in order to consider\n"
          "                             a region a candidate for mapping\n"
@@ -353,8 +357,9 @@ int main(int argc, char **argv) {
   parameters.insert_size = 215;
   parameters.region_size = 100;
   parameters.threshold = 1;
+  uint32_t threads = 3;
 
-  while ((optchr = getopt_long(argc, argv, "hvk:w:f:i:r:t:", long_options, NULL)) != -1) {
+  while ((optchr = getopt_long(argc, argv, "hvk:w:f:i:r:t:T:", long_options, NULL)) != -1) {
     switch (optchr) {
       case 'h': {
         help();
@@ -389,6 +394,10 @@ int main(int argc, char **argv) {
         break;
       }
       case 't': {
+        threads = atoi(optarg);
+        break;
+      }
+      case 'T': {
         parameters.threshold = atoi(optarg);
         break;
       }
@@ -400,17 +409,18 @@ int main(int argc, char **argv) {
   }
 
   if (argc - optind > 3 || argc - optind < 2) {
-    fprintf(stderr, "[srmapper] error: Expected read(s) and reference! Use --help for usage.\n");
+    fprintf(stderr, "[srmapper] error: Expected read(s) and reference. Use --help for usage.\n");
     exit(1);
   }
 
-  fprintf(stderr, "\nMapping process started with parameters:\n"
+  fprintf(stderr, "\nMapping process started with parameters utilizing %u threads:\n"
                   "  k             = %u\n"
                   "  window length = %u\n"
                   "  top f freq    = %g\n"
                   "  insert size   = %u\n"
                   "  region size   = %u\n"
                   "  threshold     = %u\n",
+                  threads,
                   parameters.k, parameters.w, parameters.f,
                   parameters.insert_size, parameters.region_size, parameters.threshold);
 
