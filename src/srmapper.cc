@@ -43,17 +43,29 @@ static struct option long_options[] = {
   {"window_length", required_argument, NULL, 'w'},
   {"kmers", required_argument, NULL, 'k'},
   {"frequency", required_argument, NULL, 'f'},
+  {"insert_size", required_argument, NULL, 'i'},
+  {"region_size", required_argument, NULL, 'r'},
+  {"threshold", required_argument, NULL, 't'},
   {NULL, no_argument, NULL, 0}
 };
+
+typedef struct {
+  uint32_t k;
+  uint32_t w;
+  float f;
+  uint32_t insert_size;
+  uint32_t region_size;
+  uint32_t threshold;
+} mapping_params;
 
 void help(void) {
   printf("srmapper - tool for mapping short reads to reference genome.\n\n"
 
          "Usage: srmapper [OPTIONS] reference [reads]\n"
-         "  reference - FASTA file containing reference genome\n\n"
+         "  reference - FASTA file containing reference genome\n"
          "  reads     - one or two FASTA/FASTQ file containing a set of fragments\n"
          "              one = single-read sequencing reads\n"
-         "              two = paired-end read sequencing reads\n"
+         "              two = paired-end read sequencing reads\n\n"
 
          "Supported file extensions: .fasta\n"
          "                           .fa\n"
@@ -67,17 +79,28 @@ void help(void) {
          "OPTIONS:\n"
          "  -h  or  --help           print help (displayed now) and exit\n"
          "  -v  or  --version        print version info and exit\n"
-         "  -k  or  --kmers          <int>\n"
+         "  -k  or  --kmers          <uint>\n"
          "                             default: 15\n"
          "                             constraints: largest supported is 16\n"
          "                             number of letters in substrings\n"
-         "  -w  or  --window_length  <int>\n"
+         "  -w  or  --window_length  <uint>\n"
          "                             default: 5\n"
          "                             length of window\n"
          "  -f  or  --frequency      <float>\n"
          "                             default: 0.001\n"
          "                             constraints: must be from [0, 1]\n"
-         "                             number of most frequent minimizers that are not taken into account\n"
+         "                             number of most frequent minimizers that\n"
+         "                             are not taken into account\n"
+         "  -i  or  --insert_size    <uint>\n"
+         "                             default: 215\n"
+         "                             fragment insert size\n"
+         "  -r  or  --region_size    <uint>\n"
+         "                             default: 215\n"
+         "                             region size to count hits from\n"
+         "  -t  or  --threshold      <uint>\n"
+         "                             default: 1\n"
+         "                             number of hits needed in order to consider\n"
+         "                             a region a candidate for mapping\n"
   );
 }
 
@@ -107,6 +130,37 @@ bool hit_ordering(const minimizer_hit_t& a, const minimizer_hit_t& b) {
     return std::get<1>(a) < std::get<1>(b);
   }
   return std::get<2>(a) < std::get<2>(b);
+}
+
+void radixsort(std::vector<uint32_t>& array) {
+  if (array.size() <= 1) return;
+  uint32_t max_val = array[0];
+  const uint32_t size = array.size();
+  for (uint32_t i = 1; i < size; ++i) {
+    if (array[i] > max_val) {
+      max_val = array[i];
+    }
+  }
+  std::vector<uint32_t> out(size);
+  for (uint32_t e = 1; max_val / e > 0; e *= 10) {
+    uint32_t count[10];
+    for (uint32_t i = 0; i < 10; ++i) {
+      count[i] = 0;
+    }
+    for (uint32_t i = 0; i < size; ++i) {
+      count[(array[i] / e) % 10]++;
+    }
+    for (uint32_t i = 1; i < 10; ++i) {
+      count[i] += count[i - 1];
+    }
+    for (uint32_t i = size - 1; i != (uint32_t)(-1); --i) {
+      out[count[(array[i] / e) % 10] - 1] = array[i];
+      count[(array[i] / e) % 10]--;
+    }
+    for (uint32_t i = 0; i < size; ++i) {
+      array[i] = out[i];
+    }
+  }
 }
 
 void prep_ref(std::vector<minimizer_t>& t_minimizers, const float f) {
@@ -160,6 +214,26 @@ std::unordered_map<uint64_t, index_pos_t> index_ref(const std::vector<minimizer_
   return ref_index;
 }
 
+std::vector<uint32_t> find_ref_region_hits(
+    const std::unordered_map<uint64_t, index_pos_t>& ref_index,
+    const std::vector<minimizer_t>& t_minimizers,
+    const std::vector<minimizer_t>& q_minimizers,
+    const uint32_t region_size) {
+
+  std::vector<uint32_t> hits;
+
+  for (const auto& minimizer : q_minimizers) {
+    auto found = ref_index.find(std::get<0>(minimizer));
+    if (found != ref_index.end()) {
+      for (uint32_t i = 0; i < found->second.second; i++) {
+        hits.push_back(std::get<1>(t_minimizers[found->second.first + i]) / region_size);  
+      }
+    }
+  }
+
+  return hits;
+}
+
 std::vector<minimizer_hit_t> find_minimizer_hits(
     const std::unordered_map<uint64_t, index_pos_t>& ref_index,
     const std::vector<minimizer_t>& t_minimizers,
@@ -189,131 +263,98 @@ std::vector<minimizer_hit_t> find_minimizer_hits(
   return hits;
 }
 
-void map_paired(std::unordered_map<uint64_t, index_pos_t>& ref_index, std::vector<minimizer_t>& t_minimizers,
-         std::vector<std::unique_ptr<fastaq::FastAQ>>& reference, paired_reads_t& paired_reads,
-         uint32_t k, uint32_t w) {
+std::vector<uint32_t> extract_candidates(const std::vector<uint32_t>& reg_hits, const uint32_t threshold) {
+  std::vector<uint32_t> candidates;
+  uint32_t current = 0;
+  uint32_t count = 0;
+  uint32_t next = 0;
+  uint32_t next_count = 0;
+  for (uint32_t i = 0; i < reg_hits.size(); ++i) {
+    // std::cerr << "checking " << reg_hits[i] << " | current " << current << ", count " << count << ", next " << next << ", next_count " << next_count << std::endl;
+    if (reg_hits[i] == current) {
+      // std::cerr << "  increase count" << std::endl;
+      count++;
+      continue;
+    }
+    if (reg_hits[i] == current + 1) {
+      // std::cerr << "  increase both counts, set next" << std::endl;
+      count++;
+      next_count++;
+      next = current + 1;
+      continue;
+    }
+    if (count >= threshold) {
+      candidates.push_back(current);
+    }
+    if (next == current + 1) {
+      current = next;
+      count = next_count;
+    } else {
+      current = reg_hits[i];
+      count = 1;
+    }
+  }
+  if (count >= threshold) {
+    candidates.push_back(current);
+  }
+  return candidates;
+}
+
+void map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_index, const std::vector<minimizer_t>& t_minimizers,
+         const std::vector<std::unique_ptr<fastaq::FastAQ>>& reference, const paired_reads_t& paired_reads,
+         const mapping_params& parameters) {
+  uint32_t n_reads_with_candidates = 0;
   for (uint32_t i = 0; i < paired_reads.first.size(); ++i) {
     paired_minimizers_t pminimizers(brown::minimizers(paired_reads.first[i]->sequence.c_str(),
                                                       paired_reads.first[i]->sequence.size(),
-                                                      k, w),
+                                                      parameters.k, parameters.w),
                                     brown::minimizers(paired_reads.second[i]->sequence.c_str(),
                                                       paired_reads.second[i]->sequence.size(),
-                                                      k, w));
-    paired_hits_t phits(find_minimizer_hits(ref_index, t_minimizers, pminimizers.first),
-                        find_minimizer_hits(ref_index, t_minimizers, pminimizers.second));
-    std::sort(phits.first.begin(), phits.first.end(), hit_ordering);
-    std::sort(phits.second.begin(), phits.second.end(), hit_ordering);
+                                                      parameters.k, parameters.w));
+    std::pair<std::vector<uint32_t>, std::vector<uint32_t>> phits(
+        find_ref_region_hits(ref_index, t_minimizers, pminimizers.first, parameters.region_size),
+        find_ref_region_hits(ref_index, t_minimizers, pminimizers.second, parameters.region_size));
     // std::cerr << "phits first size " << phits.first.size() << std::endl;
     // for (const auto& phf : phits.first) {
-    //   std::cerr << std::get<0>(phf) << ", " << std::get<1>(phf) << ", " << std::get<2>(phf) << std::endl;
+    //   std::cerr << phf << std::endl;
     // }
     // std::cerr << "phits second size " << phits.second.size() << std::endl;
     // for (const auto& phs : phits.second) {
-    //   std::cerr << std::get<0>(phs) << ", " << std::get<1>(phs) << ", " << std::get<2>(phs) << std::endl;
+    //   std::cerr << phs << std::endl;
     // }
     // std::cerr << std::endl;
 
-    std::vector<std::vector<minimizer_hit_t>> forward_first;
-    auto h = phits.first.begin();
-    for (; h != phits.first.end() && std::get<2>(*h) == 0; ++h) {
-      uint32_t curr_pos = std::get<1>(*h);
-      auto h_iter = h;
-      auto h_next = h;
-      for (; h_iter != phits.first.end() && std::get<1>(*h_iter) < curr_pos + 200; ++h_iter) {
-        if (std::get<1>(*h_iter) > curr_pos + 100 && h_next == h) h_next = h_iter; 
-      }
-      if (h != h_iter) forward_first.emplace_back(h, h_iter);
-      h = h_next;
-    }
-    std::vector<std::vector<minimizer_hit_t>> reverse_first;
-    for (; h != phits.first.end(); ++h) {
-      uint32_t curr_pos = std::get<1>(*h);
-      auto h_iter = h;
-      auto h_next = h;
-      for (; h_iter != phits.first.end() && std::get<1>(*h_iter) < curr_pos + 200; ++h_iter) {
-        if (std::get<1>(*h_iter) > curr_pos + 100 && h_next == h) h_next = h_iter; 
-      }
-      if (h != h_iter) reverse_first.emplace_back(h, h_iter);
-      h = h_next;
-    }
-    std::vector<std::vector<minimizer_hit_t>> forward_second;
-    h = phits.second.begin();
-    for (; h != phits.second.end() && std::get<2>(*h) == 0; ++h) {
-      uint32_t curr_pos = std::get<1>(*h);
-      auto h_iter = h;
-      auto h_next = h;
-      for (; h_iter != phits.second.end() && std::get<1>(*h_iter) < curr_pos + 200; ++h_iter) {
-        if (std::get<1>(*h_iter) > curr_pos + 100 && h_next == h) h_next = h_iter; 
-      }
-      if (h != h_iter) forward_second.emplace_back(h, h_iter);
-      h = h_next;
-    }
-    std::vector<std::vector<minimizer_hit_t>> reverse_second;
-    for (; h != phits.second.end(); ++h) {
-      uint32_t curr_pos = std::get<1>(*h);
-      auto h_iter = h;
-      auto h_next = h;
-      for (; h_iter != phits.second.end() && std::get<1>(*h_iter) < curr_pos + 200; ++h_iter) {
-        if (std::get<1>(*h_iter) > curr_pos + 100 && h_next == h) h_next = h_iter; 
-      }
-      if (h != h_iter) reverse_second.emplace_back(h, h_iter);
-      h = h_next;
-    }
-    // if (!(forward_first.size() > 1 && reverse_second.size() > 1 || forward_second.size() > 1 && reverse_first.size() > 1)) continue;
-    // std::cerr << "forward_first" << std::endl;
-    // for (const auto& ff : forward_first) {
-    //   std::cerr << std::get<1>(ff[0]) << ", " << ff.size() << std::endl;
-    // }
-    // std::cerr << "forward_second" << std::endl;
-    // for (const auto& fs : forward_second) {
-    //   std::cerr << std::get<1>(fs[0]) << ", " << fs.size() << std::endl;
-    // }
-    // std::cerr << "reverse_first" << std::endl;
-    // for (const auto& rf : reverse_first) {
-    //   std::cerr << std::get<1>(rf[0]) << ", " << rf.size() << std::endl;
-    // }
-    // std::cerr << "reverse_second" << std::endl;
-    // for (const auto& rs : reverse_second) {
-    //   std::cerr << std::get<1>(rs[0]) << ", " << rs.size() << std::endl;
+    radixsort(phits.first);
+    radixsort(phits.second);
+
+    // for (const auto& phf : phits.first) {
+    //   std::cerr << phf << std::endl;
     // }
     // std::cerr << std::endl;
-    // std::cout << paired_reads.first[i]->name << std::endl;
+    // for (const auto& phs : phits.second) {
+    //   std::cerr << phs << std::endl;
+    // }
+    // std::cerr << std::endl;
 
-    auto h_vec = reverse_second.begin();
-    uint32_t fpair_count = 0;
-    for (const auto& ff : forward_first) {
-      while (h_vec != reverse_second.end() 
-             && std::get<1>(ff.front()) + 700 < std::get<1>(h_vec->front())
-             && std::get<1>(ff.front()) + 900 > std::get<1>(h_vec->front())) {
-        ++fpair_count;
-        ++h_vec;
-      }
-      if (h_vec == reverse_second.end()) break;
-    }
-    h_vec = reverse_first.begin();
-    uint32_t rpair_count = 0;
-    for (const auto& fs : forward_second) {
-      while (h_vec != reverse_first.end() 
-             && std::get<1>(fs.front()) + 700 < std::get<1>(h_vec->front())
-             && std::get<1>(fs.front()) + 900 > std::get<1>(h_vec->front())) {
-        ++rpair_count;
-        ++h_vec;
-      }
-      if (h_vec == reverse_first.end()) break;
-    }
-    if (fpair_count && rpair_count) std::cout << "BOTH " << fpair_count << ", " << rpair_count << std::endl;
-    else if (fpair_count) std::cout << "FF " << fpair_count << std::endl;
-    else if (rpair_count) std::cout << "FS " << rpair_count << std::endl;
+    std::pair<std::vector<uint32_t>, std::vector<uint32_t>> candidates(
+        extract_candidates(phits.first, parameters.threshold),
+        extract_candidates(phits.second, parameters.threshold));
+    if (candidates.first.size() && candidates.second.size()) n_reads_with_candidates++;
   }
+  std::cerr << n_reads_with_candidates << std::endl;
 }
 
 int main(int argc, char **argv) {
   int optchr;
-  uint32_t k = 20;
-  uint32_t w = 5;
-  float f = 0.001f;
+  mapping_params parameters;
+  parameters.k = 18;
+  parameters.w = 3;
+  parameters.f = 0.001f;
+  parameters.insert_size = 215;
+  parameters.region_size = 100;
+  parameters.threshold = 1;
 
-  while ((optchr = getopt_long(argc, argv, "hvk:w:f:", long_options, NULL)) != -1) {
+  while ((optchr = getopt_long(argc, argv, "hvk:w:f:i:r:t:", long_options, NULL)) != -1) {
     switch (optchr) {
       case 'h': {
         help();
@@ -324,19 +365,31 @@ int main(int argc, char **argv) {
         exit(0);
       }
       case 'k': {
-        k = atoi(optarg);
+        parameters.k = atoi(optarg);
         break;
       }
       case 'w': {
-        w = atoi(optarg);
+        parameters.w = atoi(optarg);
         break;
       }
       case 'f': {
-        f = atof(optarg);
-        if (f < 0.0f || f > 1.0f) {
+        parameters.f = atof(optarg);
+        if (parameters.f < 0.0f || parameters.f > 1.0f) {
           fprintf(stderr, "[srmapper] error: f must be from [0, 1].\n"); 
           exit(1); 
         }
+        break;
+      }
+      case 'i': {
+        parameters.insert_size = atoi(optarg);
+        break;
+      }
+      case 'r': {
+        parameters.region_size = atoi(optarg);
+        break;
+      }
+      case 't': {
+        parameters.threshold = atoi(optarg);
         break;
       }
       default: {
@@ -354,8 +407,12 @@ int main(int argc, char **argv) {
   fprintf(stderr, "\nMapping process started with parameters:\n"
                   "  k             = %u\n"
                   "  window length = %u\n"
-                  "  top f freq    = %g\n",
-                  k, w, f);
+                  "  top f freq    = %g\n"
+                  "  insert size   = %u\n"
+                  "  region size   = %u\n"
+                  "  threshold     = %u\n",
+                  parameters.k, parameters.w, parameters.f,
+                  parameters.insert_size, parameters.region_size, parameters.threshold);
 
   fprintf(stderr, "\nLoading reference... ");
 
@@ -372,11 +429,11 @@ int main(int argc, char **argv) {
 
   std::vector<minimizer_t> t_minimizers = brown::minimizers(reference[0]->sequence.c_str(), 
                                                             reference[0]->sequence.size(), 
-                                                            k, w);
-  prep_ref(t_minimizers, f);
+                                                            parameters.k, parameters.w);
+  prep_ref(t_minimizers, parameters.f);
   std::unordered_map<uint64_t, index_pos_t> ref_index = index_ref(t_minimizers);
 
-  fprintf(stderr, "\rIndexed reference.        \n");
+  fprintf(stderr, "\rIndexed reference.        \n\n");
   
   fastaq::FastAQ::print_statistics(reference, reference_file);
   
@@ -395,16 +452,21 @@ int main(int argc, char **argv) {
     fastaq::FastAQ::parse(paired_reads.first, reads_file1, check_extension(reads_file1, fasta_formats));
     fastaq::FastAQ::parse(paired_reads.second, reads_file2, check_extension(reads_file2, fasta_formats));
 
-    fprintf(stderr, "\rLoaded paired-end reads.        \n");
+    fprintf(stderr, "\rLoaded paired-end reads.        \n\n");
 
     fastaq::stats pr1_stats = fastaq::FastAQ::print_statistics(paired_reads.first, reads_file1);
     fastaq::stats pr2_stats = fastaq::FastAQ::print_statistics(paired_reads.second, reads_file2);
+    fprintf(stderr, "\n");
 
     if (pr1_stats.num != pr2_stats.num) {
       fprintf(stderr, "[srmapper] error: Paired-end read files must have equal number of reads (pairs).\n");
+      exit(1);
+    }
+    if (pr1_stats.max - pr1_stats.min > 0.5 * pr1_stats.avg || pr2_stats.max - pr2_stats.min > 0.5 * pr2_stats.avg) {
+      fprintf(stderr, "[srmapper] warning: Reads are not of fixed size.\n");
     }
 
-    map_paired(ref_index, t_minimizers, reference, paired_reads, k, w);
+    map_paired(ref_index, t_minimizers, reference, paired_reads, parameters);
   } else {
     fprintf(stderr, "\nLoading reads... ");
     std::string reads_file(argv[optind + 1]);
