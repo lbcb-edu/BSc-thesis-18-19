@@ -13,7 +13,7 @@
 
 namespace brown {
 
-std::map<char, uint64_t> char_to_val = {{'C', 3}, {'A', 2}, {'T', 1}, {'U', 1}, {'G', 0}};
+std::map<char, uint64_t> char_to_val = {{'C', 0}, {'A', 1}, {'T', 2}, {'U', 2}, {'G', 3}};
 
 typedef std::tuple<uint64_t, uint32_t, bool> triplet_t;
 

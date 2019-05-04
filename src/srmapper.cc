@@ -27,7 +27,7 @@ typedef std::tuple<uint64_t, uint32_t, bool> minimizer_t;
 typedef std::pair<uint32_t, uint32_t> index_pos_t;
 // hit: query position, reference position, relative strand
 typedef std::tuple<uint32_t, uint32_t, bool> minimizer_hit_t;
-// region = two hits
+// region = two "hits" with swapped positions for reverse complement
 typedef std::pair<minimizer_hit_t, minimizer_hit_t> region_t;
 // paired read
 typedef std::pair<std::vector<std::unique_ptr<fastaq::FastAQ>>, std::vector<std::unique_ptr<fastaq::FastAQ>>> paired_reads_t;
@@ -430,6 +430,20 @@ std::pair<region_t, unsigned int> find_region(std::vector<minimizer_hit_t>& hits
   return region; 
 }
 
+void expand_regions(std::vector<region_t>& regions, uint32_t read_size, uint32_t k) {
+  for (auto& reg : regions) {
+    if (std::get<2>(reg.first) == 0) {
+      std::get<1>(reg.first) -= std::get<0>(reg.first);
+      std::get<1>(reg.second) += read_size - std::get<0>(reg.second);
+    } else {
+      std::get<1>(reg.first) -= read_size - std::get<0>(reg.second) - k;
+      std::get<1>(reg.second) += std::get<0>(reg.first) + k;
+    }
+    std::get<0>(reg.first) = 0;
+    std::get<0>(reg.second) = read_size - 1;
+  }
+}
+
 void map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_index, const std::vector<minimizer_t>& t_minimizers,
          const std::vector<std::unique_ptr<fastaq::FastAQ>>& reference, const paired_reads_t& paired_reads,
          const mapping_params& parameters) {
@@ -478,9 +492,10 @@ void map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_index, cons
         regions.push_back(reg.first);
       }
     }
+    expand_regions(regions, paired_reads.first[i]->sequence.size(), parameters.k);
     std::cout << paired_reads.first[i]->name << std::endl;
     for (const auto& region : regions) {
-      std::cout << std::get<0>(region.first) << ", " << std::get<1>(region.first) << " - " << std::get<0>(region.second) << ", " << std::get<1>(region.second) << std::endl;
+      std::cout << std::get<2>(region.first) << " | " << std::get<0>(region.first) + 1 << ", " << std::get<1>(region.first) + 1 << " - " << std::get<0>(region.second) + 1 << ", " << std::get<1>(region.second) + 1 << std::endl;
     }
     std::cout << std::endl;
     // if (candidates.first.size() && candidates.second.size()) n_reads_with_candidates++;
