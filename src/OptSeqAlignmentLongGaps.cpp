@@ -146,28 +146,30 @@ int main(int argc, char **argv) {
 	for(auto const &query : query_entries) {
 		for(auto const &ref : ref_entries) {
 			std::vector<std::string> cigars;
-
 			OSALG::long_gaps_alignment(query->sequence, ref->sequence, cigars);
 
-			printf("----------------------");
-			printf("ref: %s\n", (ref->name).c_str());
+			printf("----------------------\n");
+			printf("reference: %s\n", (ref->name).c_str());
 			printf("query: %s\n", (query->name).c_str());
 			printf("cigars: \n");
 			for(auto const &cig : cigars) {
+				printf("--$$$$$--\n");
 				printf("%s\n", cig.c_str());
+				printf("--$$$$$--\n");
 			}
-			printf("----------------------");
+			printf("----------------------\n");
 		}
 	}
 
-	/*
-	std::vector<std::string> cigars;
-	OSALG::long_gaps_alignment("AGT", "TGAGTT", cigars);
+	//std::vector<std::string> cigars;
+	//OSALG::long_gaps_alignment("AGTGATCCCTGAAGTTGC", "TGAGTTTCAGCTCAAAGGGTCTCGATCTCC", cigars);
+	//OSALG::long_gaps_alignment("AGTGATCC", "TGAGTTTCAG", cigars);
+	//OSALG::long_gaps_alignment("GATCC", "TTCAG", cigars);
+	//OSALG::long_gaps_alignment("AGTGAC", "TGAGCTT", cigars);
 
-	for(int i = 0; i < cigars.size(); ++i) {
-		printf("%s\n", cigars[i].c_str());
-	}
-	*/
+	//for(int i = 0; i < cigars.size(); ++i) {
+	//	printf("%s\n", cigars[i].c_str());
+	//}
 
 	return 0;
 }

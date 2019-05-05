@@ -5,14 +5,14 @@
 #include "OSALG_lib.h"
 
 #define L 2
-#define MATCH_SCORE 0
-#define MISMATCH_SCORE 10
+#define MATCH_SCORE -2
+#define MISMATCH_SCORE 4
 
 
 namespace OSALG {
 
-	std::vector<int> u{10, 5};
-	std::vector<int> v{0, 3};
+	std::vector<int> u{4, 2};
+	std::vector<int> v{1, 13};
 
 	struct save2 {
 		int p;
@@ -122,7 +122,7 @@ namespace OSALG {
 
 		for (int i = 0; i <= 2 * L; ++i) {
 			if (row[n].e_arr[i]) {
-				primary_list.emplace_back(m, n, row[n].p_arr[i]);
+				primary_list.emplace_back(m, n, row[n].p_arr[i].p, row[n].p_arr[i].q);
 			}
 		}
 	}
@@ -132,7 +132,7 @@ namespace OSALG {
 		pp.p = row[n].p_arr[0].p;
 		pp.q = secondary_list.size() + 1;
 
-		secondary_list.emplace_back(row[n].p_arr[i]);
+		secondary_list.emplace_back(row[n].p_arr[i].p, row[n].p_arr[i].q);
 	}
 
 	int diff(char first, char second) {
@@ -151,34 +151,24 @@ namespace OSALG {
 	void editCIGAR(int i, int j, int k, int l, int m, int n, int current_editing_index, std::vector<std::string> &cigars) {
 		int temp;
 		
-		if (k == m) {
+		if(k == m) {
 			temp = n - l;
 
 			if (temp != 0) {
 				cigars[current_editing_index] = std::to_string(temp) + "I" + cigars[current_editing_index];
 			}
-		}
-		else {
+		} else {
 			temp = m - k;
 			
 			if (temp != 0) {
-				cigars[current_editing_index] = std::to_string(temp) + ((l==n) ? "D" : "M") + cigars[current_editing_index];
+				cigars[current_editing_index] = std::to_string(temp) + "D" + cigars[current_editing_index];
 			}
 		}
 
-		if (i == k) {
-			temp = l - j;
 
-			if (temp != 0) {
-				cigars[current_editing_index] = std::to_string(temp) + "I" + cigars[current_editing_index];
-			}
-		}
-		else {
-			temp = k - i;
-
-			if (temp != 0) {
-				cigars[current_editing_index] = std::to_string(temp) + ((j == l) ? "D" : "M") + cigars[current_editing_index];
-			}
+		temp = k - i;
+		if(temp != 0) {
+			cigars[current_editing_index] = std::to_string(temp) + "M" + cigars[current_editing_index];
 		}
 	}
 
@@ -186,7 +176,9 @@ namespace OSALG {
 		std::vector<std::string> &cigars, int current_editing_index, int primary_list_index,
 		int next_primary_list_index, bool branched) {;
 		
-		if (primary_list_index == 0) return;
+		if (primary_list_index == 0) {
+			return;
+		}
 
 		if (primary_list[primary_list_index].pointer.q != 0 && !branched) {
 			cigars.emplace_back(std::string(cigars[cigars.size() - 1]));
@@ -221,6 +213,7 @@ namespace OSALG {
 	}
 
 
+
 	void fill_CIGARS_storage(std::vector<SAVE1_type> const &primary_list, std::vector<SAVE2_type> const &secondary_list, std::vector<std::string> &cigars,
 		std::string const &seq1, std::string const &seq2) {
 
@@ -234,10 +227,6 @@ namespace OSALG {
 	}
 
 	int long_gaps_alignment(std::string const &seq1, std::string const &seq2, std::vector<std::string> &cigars) {
-
-		if (v.size() < L || u.size() < L) {
-			return -1;
-		}
 
 		std::vector<SAVE1_type> primary_list;
 		primary_list.emplace_back(0, 0, 0, 0);
@@ -286,7 +275,7 @@ namespace OSALG {
 					current_row[n].e_arr[i] = (current_row[n].d_arr_val == current_row[n].f_arr[i]);
 				}
 
-				if (current_row[n].e_arr[0] && check_for_truth(previous_row, n - 1)) {
+				if (current_row[n].e_arr[0] && check_for_truth(previous_row, n - 1) && !previous_row[n - 1].e_arr[0]) {
 					adr_function(current_row[n].p_arr[0], m - 1, n - 1, previous_row, primary_list);
 				}
 				else {
@@ -306,6 +295,18 @@ namespace OSALG {
 
 		SAVE2_type p_last;
 		adr_function(p_last, seq1.length(), seq2.length(), current_row, primary_list);
+
+		/*
+		printf("prim\n");
+		for(int i = 0; i < primary_list.size(); ++i) {
+			printf("%d %d %d %d == %d\n", primary_list[i].m, primary_list[i].n, primary_list[i].pointer.p, primary_list[i].pointer.q, i+1);
+		}
+
+		printf("sec\n");
+		for(int i = 0; i < secondary_list.size(); ++i) {
+			printf("%d %d == %d\n", secondary_list[i].p, secondary_list[i].q, i + 1);
+		}
+		*/
 
 		fill_CIGARS_storage(primary_list, secondary_list, cigars, seq1, seq2);
 
