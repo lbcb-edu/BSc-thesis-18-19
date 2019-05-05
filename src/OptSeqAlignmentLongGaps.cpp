@@ -50,8 +50,21 @@ void version() {
 }
 
 void help() {
-	//TO DO
-	printf("help\n");
+	printf(
+		"\n"
+		"==================\n"
+		"The program accepts two files as floating arguments and outputs CIGAR strings gotten as result of sequence alignment allowing for long gaps.\n"
+		"Program approximates concave function with 2 linear functions(u1=4, v1=1, u2=2, v2=13)\n"
+		"Supported formats are .fasta, .fa, .fastq, .fq, .fasta.gz, .fa.gz, .fastq.gz, .fq.gz\n"
+		"\n"
+		"Usage: OptSeqAlignmentLongGaps <query_file_name> <reference_file_name>\n"
+		"\n"
+		"options: \n"
+        	"	-h, --help  -  prints help menu (currently displaying)\n"
+        	"	-v, --version  -  prints program version\n"
+		"==================\n"
+		"\n"
+	);
 }
 
 bool endsWith(std::string const &fullString, std::string const &ending) {
