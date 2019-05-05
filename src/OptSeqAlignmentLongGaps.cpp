@@ -110,7 +110,6 @@ int main(int argc, char **argv) {
 	char optchr;
 	int option_index = 0;
 	while((optchr = getopt_long(argc, argv, "hv", options, &option_index)) != -1) {
-		printf("%c\n", optchr);
 		switch(optchr) {
 		
 			case 0:
