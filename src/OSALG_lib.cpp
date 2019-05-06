@@ -181,18 +181,16 @@ namespace OSALG {
 		}
 
 		if (primary_list[primary_list_index].pointer.q != 0 && !branched) {
-			cigars.emplace_back(std::string(cigars[cigars.size() - 1]));
-			process_directional_graph(primary_list, secondary_list, cigars, current_editing_index + 1, primary_list_index, secondary_list[primary_list[primary_list_index].pointer.q - 1].p - 1, true);
+			cigars.emplace_back(std::string(cigars[current_editing_index]));
+			process_directional_graph(primary_list, secondary_list, cigars, cigars.size() - 1, primary_list_index, secondary_list[primary_list[primary_list_index].pointer.q - 1].p - 1, true);
 
 			// loop for additional branching
 			int temp_q = secondary_list[primary_list[primary_list_index].pointer.q - 1].q;
-			int temp_edit_index = current_editing_index + 2;
 			while (temp_q != 0) {
-				cigars.emplace_back(std::string(cigars[cigars.size() - 1]));
-				process_directional_graph(primary_list, secondary_list, cigars, temp_edit_index, primary_list_index, secondary_list[temp_q].p - 1, true);
+				cigars.emplace_back(std::string(cigars[current_editing_index]));
+				process_directional_graph(primary_list, secondary_list, cigars, cigars.size() - 1, primary_list_index, secondary_list[temp_q - 1].p - 1, true);
 
-				temp_q = secondary_list[temp_q].q;
-				temp_edit_index++;
+				temp_q = secondary_list[temp_q - 1].q;
 			}
 		}
 
