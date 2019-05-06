@@ -43,6 +43,8 @@ typedef std::pair<std::vector<std::vector<minimizer_hit_t>>, std::vector<std::ve
 const std::set<std::string> fasta_formats = {".fasta", ".fa", ".fasta.gz", ".fa.gz"};
 const std::set<std::string> fastq_formats = {".fastq", ".fq", ".fastq.gz", ".fq.gz"};
 
+std::unordered_map<char, char> complement_map = {{'C', 'G'}, {'A', 'T'}, {'T', 'A'}, {'U', 'A'}, {'G', 'C'}};
+
 static struct option long_options[] = {
   {"help", no_argument, NULL, 'h'},
   {"version", no_argument, NULL, 'v'},
@@ -134,14 +136,13 @@ bool check_extension(const std::string& filename, const std::set<std::string>& e
   return false;
 }
 
-bool hit_ordering(const minimizer_hit_t& a, const minimizer_hit_t& b) {
-  if (std::get<2>(a) == std::get<2>(b)) {
-    if(std::get<1>(a) == std::get<1>(b)) {
-      return std::get<0>(a) < std::get<0>(b);
-    }
-    return std::get<1>(a) < std::get<1>(b);
+std::string reverse_complement(const std::string& original, unsigned int pos, unsigned int length) {
+  std::string rc(original.begin() + pos, original.begin() + pos + length);
+  unsigned int j = pos + length - 1;
+  for (unsigned int i = 0; i < length; ++i) {
+    rc[i] = complement_map[original[j--]];
   }
-  return std::get<2>(a) < std::get<2>(b);
+  return rc;
 }
 
 void radixsort(std::vector<minimizer_hit_t>& hits) {
@@ -427,23 +428,37 @@ std::pair<region_t, unsigned int> find_region(std::vector<minimizer_hit_t>& hits
   return region; 
 }
 
+void expand_region(region_t& reg, uint32_t read_size, uint32_t k) {
+  if (std::get<2>(reg.first) == 0) {
+    std::get<1>(reg.first) -= std::get<0>(reg.first);
+    std::get<1>(reg.second) += read_size - std::get<0>(reg.second);
+  } else {
+    std::get<1>(reg.first) -= read_size - std::get<0>(reg.second) - k;
+    std::get<1>(reg.second) += std::get<0>(reg.first) + k;
+  }
+  std::get<0>(reg.first) = 0;
+  std::get<0>(reg.second) = read_size - 1;
+}
+
 void expand_regions(std::vector<region_t>& regions, uint32_t read_size, uint32_t k) {
   for (auto& reg : regions) {
-    if (std::get<2>(reg.first) == 0) {
-      std::get<1>(reg.first) -= std::get<0>(reg.first);
-      std::get<1>(reg.second) += read_size - std::get<0>(reg.second);
-    } else {
-      std::get<1>(reg.first) -= read_size - std::get<0>(reg.second) - k;
-      std::get<1>(reg.second) += std::get<0>(reg.first) + k;
-    }
-    std::get<0>(reg.first) = 0;
-    std::get<0>(reg.second) = read_size - 1;
+    // if (std::get<2>(reg.first) == 0) {
+    //   std::get<1>(reg.first) -= std::get<0>(reg.first);
+    //   std::get<1>(reg.second) += read_size - std::get<0>(reg.second);
+    // } else {
+    //   std::get<1>(reg.first) -= read_size - std::get<0>(reg.second) - k;
+    //   std::get<1>(reg.second) += std::get<0>(reg.first) + k;
+    // }
+    // std::get<0>(reg.first) = 0;
+    // std::get<0>(reg.second) = read_size - 1;
+    expand_region(reg, read_size, k);
   }
 }
 
 void map_single(const std::unordered_map<uint64_t, index_pos_t>& ref_index, const std::vector<minimizer_t>& t_minimizers,
                 const std::vector<std::unique_ptr<fastaq::FastAQ>>& reference, 
                 const std::vector<std::unique_ptr<fastaq::FastAQ>>& reads, const mapping_params& parameters) {
+  std::string sam;
   for (uint32_t i = 0; i < reads.size(); ++i) {
     std::vector<minimizer_t> q_minimizers = brown::minimizers(reads[i]->sequence.c_str(), reads[i]->sequence.size(),
                                                              parameters.k, parameters.w);
@@ -453,32 +468,47 @@ void map_single(const std::unordered_map<uint64_t, index_pos_t>& ref_index, cons
     radixsort(hits.second);
     std::pair<bin_t, bin_t> candidates(extract_candidates(hits.first, parameters.threshold, parameters.region_size),
                                        extract_candidates(hits.second, parameters.threshold, parameters.region_size));
-    std::vector<region_t> regions;
     for (auto& bin : candidates.first) {
       auto reg = find_region(bin.second, parameters.k);
-      if (reg.second > 1 * parameters.k) {
-        regions.push_back(reg.first);
-      }
+      expand_region(reg.first, parameters.region_size, parameters.k);
+      sam += reads[i]->name.substr(0, reads[i]->name.find('/', 0)) + "\t" +
+             "FLAGS" + "\t" +
+             reference[0]->name + "\t" +
+             std::to_string(std::get<1>(reg.first.first) + 1) + "\t" +
+             "255" + "\t" +
+             "100M?" + "\t" +
+             "*" + "\t" +
+             "0" + "\t" +
+             "0" + "\t" +
+             reads[i]->sequence + "\t" +
+             reads[i]->quality + "\t" +
+             "OPT\n";
+             
     }
     for (auto& bin : candidates.second) {
       auto reg = find_region(bin.second, parameters.k);
-      if (reg.second > 1 * parameters.k) {
-        regions.push_back(reg.first);
-      }
-    }
-    expand_regions(regions, reads[i]->sequence.size(), parameters.k);
-    for (const auto& region : regions) {
-      std::cout << reads[i]->name << "\t" << std::get<2>(region.first) 
-                << "\t" << std::get<0>(region.first) + 1 << "\t" << std::get<1>(region.first) + 1 
-                << "\t" << std::get<0>(region.second) + 1 << "\t" << std::get<1>(region.second) + 1 
-                << std::endl;
+      expand_region(reg.first, parameters.region_size, parameters.k);
+      sam += reads[i]->name.substr(0, reads[i]->name.find('/', 0)) + "\t" +
+             "FLAGS" + "\t" +
+             reference[0]->name + "\t" +
+             std::to_string(std::get<1>(reg.first.first) + 1) + "\t" +
+             "255" + "\t" +
+             "100M?" + "\t" +
+             "*" + "\t" +
+             "0" + "\t" +
+             "0" + "\t" +
+             reverse_complement(reads[i]->sequence, 0, reads[i]->sequence.size()) + "\t" +
+             std::string(reads[i]->quality.rbegin(), reads[i]->quality.rend()) + "\t" +
+             "OPT\n";
     }
   }
+  std::cout << sam;
 }
 
 void map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_index, const std::vector<minimizer_t>& t_minimizers,
                 const std::vector<std::unique_ptr<fastaq::FastAQ>>& reference, const paired_reads_t& paired_reads,
                 const mapping_params& parameters) {
+  std::string sam;
   for (uint32_t i = 0; i < paired_reads.first.size(); ++i) {
     paired_minimizers_t p_minimizers(brown::minimizers(paired_reads.first[i]->sequence.c_str(),
                                                        paired_reads.first[i]->sequence.size(),
@@ -506,39 +536,56 @@ void map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_index, cons
                                               parameters.region_size);
     paired_checked_t checked2 = check_pairing(candidates2, parameters.insert_size, 
                                               parameters.region_size);
-    std::vector<region_t> regions;
+    std::vector<region_t> regions[4];
     for (auto& hits : checked1.first) {
       std::pair<region_t, unsigned int> reg = find_region(hits, parameters.k);
-      if (reg.second > 1 * parameters.k) {
-        regions.push_back(reg.first);
-      }
+      expand_region(reg.first, parameters.region_size, parameters.k);
+      regions[0].push_back(reg.first);
     }
     for (auto& hits : checked2.second) {
       std::pair<region_t, unsigned int> reg = find_region(hits, parameters.k);
-      if (reg.second > 1 * parameters.k) {
-        regions.push_back(reg.first);
-      }
+      expand_region(reg.first, parameters.region_size, parameters.k);
+      regions[1].push_back(reg.first);
     }
     for (auto& hits : checked1.second) {
       std::pair<region_t, unsigned int> reg = find_region(hits, parameters.k);
-      if (reg.second > 1 * parameters.k) {
-        regions.push_back(reg.first);
-      }
+      expand_region(reg.first, parameters.region_size, parameters.k);
+      regions[2].push_back(reg.first);
     }
     for (auto& hits : checked2.first) {
       std::pair<region_t, unsigned int> reg = find_region(hits, parameters.k);
-      if (reg.second > 1 * parameters.k) {
-        regions.push_back(reg.first);
+      expand_region(reg.first, parameters.region_size, parameters.k);
+      regions[3].push_back(reg.first);
+    }
+    // WHAT HAVE I DONE
+    std::string rc;
+    std::string rq;
+    for (uint32_t j = 0; j < 4; ++j) {
+      for (const auto& region : regions[j]) {
+        std::string* seq  = j < 2 ? &(paired_reads.first[i]->sequence) : &(paired_reads.second[i]->sequence);
+        seq  = j == 0 || j == 3 ? seq : &(rc = reverse_complement(*seq, 0, seq->size()));
+        std::string* qual = j < 2 ? &(paired_reads.first[i]->quality) : &(paired_reads.second[i]->quality);
+        qual = j == 0 || j == 3 ? qual : &(rq = std::string(qual->rbegin(), qual->rend()));
+        uint32_t pair_index = j < 2 ? j + 2 : j - 2;
+        int32_t pair = regions[pair_index].size() ? std::get<1>(regions[pair_index][0].first) : 0;
+        int32_t ins = pair - (int32_t)std::get<1>(region.first);
+        ins += ins > 0 ? 100 : -100;
+        sam += paired_reads.first[i]->name.substr(0, paired_reads.first[i]->name.find('/', 0)) + "\t" +
+               "FLAGS" + "\t" +
+               reference[0]->name + "\t" +
+               std::to_string(std::get<1>(region.first) + 1) + "\t" +
+               "255" + "\t" +
+               "100M?" + "\t" +
+               "=" + "\t" +
+               std::to_string(pair + 1) + "\t" +
+               std::to_string(ins) + "\t" +
+               *seq + "\t" +
+               *qual + "\t" +
+               "OPT\n";
       }
     }
-    expand_regions(regions, paired_reads.first[i]->sequence.size(), parameters.k);
-    for (const auto& region : regions) {
-      std::cout << paired_reads.first[i]->name << "\t" << std::get<2>(region.first) 
-                << "\t" << std::get<0>(region.first) + 1 << "\t" << std::get<1>(region.first) + 1 
-                << "\t" << std::get<0>(region.second) + 1 << "\t" << std::get<1>(region.second) + 1 
-                << std::endl;
-    }
   }
+  std::cout << sam;
 }
 
 int main(int argc, char **argv) {
@@ -646,7 +693,6 @@ int main(int argc, char **argv) {
   std::unordered_map<uint64_t, index_pos_t> ref_index = index_ref(t_minimizers);
 
   fprintf(stderr, "\rIndexed reference.        \n\n");
-  
   fastaq::FastAQ::print_statistics(reference, reference_file);
   
   if (argc - optind == 3) {
@@ -654,7 +700,6 @@ int main(int argc, char **argv) {
 
     std::string reads_file1(argv[optind + 1]);
     std::string reads_file2(argv[optind + 2]);
-
     if (!(check_extension(reads_file1, fasta_formats) || check_extension(reads_file1, fastq_formats))
         || !(check_extension(reads_file2, fasta_formats) || check_extension(reads_file2, fastq_formats))) {
       fprintf(stderr, "[srmapper] error: Unsupported paired-end reads formats. Check --help for supported file formats.\n");
@@ -665,10 +710,10 @@ int main(int argc, char **argv) {
     fastaq::FastAQ::parse(paired_reads.second, reads_file2, check_extension(reads_file2, fasta_formats));
 
     fprintf(stderr, "\rLoaded paired-end reads.        \n\n");
-
     fastaq::stats pr1_stats = fastaq::FastAQ::print_statistics(paired_reads.first, reads_file1);
     fastaq::stats pr2_stats = fastaq::FastAQ::print_statistics(paired_reads.second, reads_file2);
     fprintf(stderr, "\n");
+
     if (paired) {
       fprintf(stderr, "Using insert size information.\n");
       if (pr1_stats.num != pr2_stats.num) {
@@ -680,22 +725,20 @@ int main(int argc, char **argv) {
       }
       map_paired(ref_index, t_minimizers, reference, paired_reads, parameters);
     } else {
-
+      map_single(ref_index, t_minimizers, reference, paired_reads.first, parameters);
+      map_single(ref_index, t_minimizers, reference, paired_reads.second, parameters);
     }
   } else {
     fprintf(stderr, "\nLoading reads... ");
     std::string reads_file(argv[optind + 1]);
-
     if (!(check_extension(reads_file, fasta_formats) || check_extension(reads_file, fastq_formats))) {
       fprintf(stderr, "[srmapper] error: Unsupported format. Check --help for supported file formats.\n");
       exit(1);
     }
-
     std::vector<std::unique_ptr<fastaq::FastAQ>> reads;
     fastaq::FastAQ::parse(reads, reads_file, check_extension(reads_file, fasta_formats));
 
     fprintf(stderr, "\rLoaded reads.        \n");
-    
     fastaq::FastAQ::print_statistics(reads, reads_file);
 
     map_single(ref_index, t_minimizers, reference, reads, parameters);
