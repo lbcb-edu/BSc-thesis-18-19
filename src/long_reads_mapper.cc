@@ -31,9 +31,18 @@ typedef std::tuple<unsigned int, unsigned int, bool> triplet_t;
 // position, amount
 typedef std::pair<unsigned int, unsigned int> minimizer_index_t;
 // query position, reference position, relative strand
-typedef std::tuple<unsigned int, unsigned int, bool> minimizer_hit_t;
+//typedef std::tuple<unsigned int, unsigned int, bool> minimizer_hit_t;
+typedef std::pair<unsigned int, unsigned int> minimizer_hit_t;
+
 //number of hits, position
 typedef std::tuple<unsigned int, unsigned int> stat;
+
+//number of LIS, starting position, relative strand
+typedef std::tuple<unsigned int, unsigned int, bool> best_match;
+
+//region number, number of hits
+typedef std::pair<unsigned int, int> region_hits;
+
 
 static struct option long_options[] = {
   {"help", no_argument, NULL, 'h'},
@@ -189,24 +198,6 @@ bool contains_extension(const std::string file, const std::set<std::string> &ext
 
 
 
-
-
-
-
-
-
-
-bool hit_ordering(const minimizer_hit_t& a, const minimizer_hit_t& b) {
-  if (std::get<2>(a) == std::get<2>(b)) {
-    if(std::get<0>(a) == std::get<0>(b)){
-      return std::get<1>(a) < std::get<1>(b);
-    }
-    return std::get<0>(a) < std::get<0>(b);
-  }
-  return std::get<2>(a) < std::get<2>(b);
-}
-
-
 void prep_ref(std::vector<triplet_t>& t_minimizers, const float f) {
   std::unordered_map<unsigned int, unsigned int> ref_min_frequency;
   for (const auto& minimizer : t_minimizers) {
@@ -267,193 +258,292 @@ std::unordered_map<unsigned int, minimizer_index_t> index_ref(
   return ref_index;
 }
 
-
-// std::unordered_map<unsigned int, std::vector<minimizer_hit_t>> find_minimizer_hits(
-//     const std::unordered_map<unsigned int, minimizer_index_t>& ref_index,
-//     const std::vector<triplet_t>& t_minimizers,
-//     const std::vector<triplet_t>& q_minimizers,
-//     int k_value) {
-
-//   std::unordered_map<unsigned int, minimizer_hit_t> hits;
-
-//   for (const auto& minimizer : q_minimizers) {
-//     auto found = ref_index.find(std::get<0>(minimizer));
-//     if (found == ref_index.end()) continue;
-
-//     for (unsigned int i = 0; i < found->second.second; i++){
-//       bool srand = false;
-//       if (std::get<2>(minimizer) == std::get<2>(t_minimizers[found->second.first + i])) bool = true;
-//       int position = std::get<1>(t_minimizers[found->second.first + i]);
-
-//       if(position < k_value){
-//         hits[0].emplace_back(std::get<1>(minimizer),
-//           std::get<1>(t_minimizers[found->second.first + i]), srand);
-//       }else{
-//         int key = position / k_value;
-//         hits[key].emplace_back(std::get<1>(minimizer),
-//           std::get<1>(t_minimizers[found->second.first + i]), srand);
-//         hits[key - 1].emplace_back(std::get<1>(minimizer),
-//           std::get<1>(t_minimizers[found->second.first + i]), srand);
-//       }
-//     }
-//   }
-//   return hits;
-// }
-
-std::vector<minimizer_hit_t> find_minimizer_hits(
+void find_minimizer_hits(
     const std::unordered_map<unsigned int, minimizer_index_t>& ref_index,
     const std::vector<triplet_t>& t_minimizers,
-    const std::vector<triplet_t>& q_minimizers) {
-
-  std::vector<minimizer_hit_t> hits;
+    const std::vector<triplet_t>& q_minimizers,
+    std::vector<minimizer_hit_t>& same,
+    std::vector<minimizer_hit_t>& rev) {
 
   for (const auto& minimizer : q_minimizers) {
     auto found = ref_index.find(std::get<0>(minimizer));
     if (found != ref_index.end()) {
       for (unsigned int i = 0; i < found->second.second; i++) {
         if (std::get<2>(minimizer) == std::get<2>(t_minimizers[found->second.first + i])) {
-          hits.emplace_back(
+          same.emplace_back(
             std::get<1>(minimizer),
-            std::get<1>(t_minimizers[found->second.first + i]),
-            0);  
+            std::get<1>(t_minimizers[found->second.first + i]));  
         } else {
-          hits.emplace_back(
+          rev.emplace_back(
             std::get<1>(minimizer),
-            std::get<1>(t_minimizers[found->second.first + i]),
-            1);
+            std::get<1>(t_minimizers[found->second.first + i]));
         }
         
       }
     }
   }
+}
 
-  return hits;
+std::unordered_map<unsigned int, int> parse_hits_map(std::vector<minimizer_hit_t> & hits, int k_value){
+  std::unordered_map<unsigned int, int> result;
+  for(auto& hit : hits){
+    unsigned int region = std::get<1>(hit) / k_value;
+    result[region]++;
+    if(region != 0) result[region - 1]++;
+  }
+  return result;
+
+}
+
+
+bool hit_ordering_top_3(const region_hits& a, const region_hits& b) {
+  return std::get<1>(a) > std::get<1>(b);
+}
+
+std::vector<region_hits> find_top_3(std::unordered_map<unsigned int, int>& map, int threshold){
+  std::vector<region_hits> result;
+    for (auto& it: map) {
+      if(it.second < threshold) continue;
+      if(result.size() < 3){
+        result.push_back(it);
+      }else{
+        if(it.second > std::get<1>(result[2])){
+          result.pop_back();
+          result.push_back(it);
+          std::sort(result.begin(), result.end(), hit_ordering_top_3);
+        }
+      }
+    }
+    std::sort(result.begin(), result.end(), hit_ordering_top_3);
+    return result;
 }
 
 std::string map_paf(const std::vector<triplet_t>& t_minimizers,
     const std::unordered_map<unsigned int, minimizer_index_t>& ref_index,
     const std::vector<std::unique_ptr<FastAQ>>& fastaq_objects1,
     const std::vector<std::unique_ptr<FastAQ>>& fastaq_objects2,
-    unsigned int k, unsigned int window_length, brown::AlignmentType alignment,
+    unsigned int k, unsigned int window_length,
     int match, int mismatch, int gap,
-    unsigned int t_begin, unsigned int t_end, int bw, bool c, int k_value) {
-
-  std::string paf;
+    unsigned int t_begin, unsigned int t_end, int k_value) {
 
 
   for (unsigned int fobj = t_begin; fobj < t_end; fobj++) {
 
-    if(fastaq_objects1[fobj]->sequence.size() < 2 * k_value) continue;
+    unsigned int sequence_length = fastaq_objects1[fobj]->sequence.size();
 
-    std::vector<triplet_t> start_minimizers = brown::minimizers(
-      fastaq_objects1[fobj]->sequence.c_str(), fastaq_objects1[fobj]->sequence.size(), k, window_length);
+    if(sequence_length < (unsigned) (2 * k_value)) continue;
 
     std::vector<minimizer> start_minimizers = brown::minimizers(fastaq_objects1[fobj]->sequence.c_str(), k_value, k, window_length);
     std::vector<minimizer> end_minimizers = brown::minimizers(fastaq_objects1[fobj]->sequence.substr(sequence_length - k_value - 1, k_value).c_str(), k_value, k, window_length);
 
-    // std::unordered_map<unsigned int, minimizer_hit_t> start_hits = find_minimizer_hits(ref_index, t_minimizers, q_minimizers, k_value);
-    // std::unordered_map<unsigned int, minimizer_hit_t> end_hits = find_minimizer_hits(ref_index, t_minimizers, q_minimizers, k_value);
+    std::vector<minimizer_hit_t> start_hits_same;
+    std::vector<minimizer_hit_t> start_hits_rev;
+    std::vector<minimizer_hit_t> end_hits_same;
+    std::vector<minimizer_hit_t> end_hits_rev;
 
-    std::vector<minimizer_hit_t> start_hits = find_minimizer_hits(ref_index, t_minimizers, start_minimizers);
-    std::vector<minimizer_hit_t> end_hits = find_minimizer_hits(ref_index, t_minimizers, end_minimizers);
+    find_minimizer_hits(ref_index, t_minimizers, start_minimizers, start_hits_same, start_hits_rev);
+    find_minimizer_hits(ref_index, t_minimizers, end_minimizers, end_hits_same, end_hits_rev);
 
-    std::sort(start_hits.begin(), start_hits.end(), hit_ordering);
-    std::sort(end_hits.begin(), end_hits.end(), hit_ordering);
+    std::unordered_map<unsigned int, int> start_hits_region = parse_hits_map(start_hits_same, k_value);
+    std::unordered_map<unsigned int, int> start_hits_region_rev = parse_hits_map(start_hits_rev, k_value);
+    std::unordered_map<unsigned int, int> end_hits_region = parse_hits_map(end_hits_same, k_value);
+    std::unordered_map<unsigned int, int> end_hits_region_rev = parse_hits_map(end_hits_rev, k_value);
 
+    // opcenite informacije
+    // printf("Sekvenca broj %d : \n", fobj);
+    // printf("Velicina sekvence:  %u\n", sequence_length);
+    // printf("Start minimizers size : %lu\n", start_minimizers.size());
+    // printf("End minimizers size : %lu\n", end_minimizers.size());
+    // printf("start_hits_same hitova : %lu\n", start_hits_same.size());
+    // printf("start_hits_rev hitova : %lu\n", start_hits_rev.size());
+    // printf("end_hits_same hitova : %lu\n", end_hits_same.size());
+    // printf("end_hits_rev hitova : %lu\n", end_hits_rev.size());
 
+    // informacije o regijama
+    // printf("Pocetak :\n");
+    // for (auto& it: start_hits_region) {
+    //   if(it.second < 5) continue;
+    //   printf("Regija %d ima %d hitova\n", it.first, it.second);
+    // }
+    // printf("rev----------------\n");
+    // for (auto& it: start_hits_region_rev) {
+    //   if(it.second < 5) continue;
+    //   printf("Regija %d ima %d hitova\n", it.first, it.second);
+    // }
+    // printf("Kraj: \n");
+    // for (auto& it: end_hits_region) {
+    //   if(it.second < 5) continue;
+    //   printf("Regija %d ima %d hitova\n", it.first, it.second);
+    // }
+    // printf("rev----------------\n");
+    // for (auto& it: end_hits_region_rev) {
+    //   if(it.second < 5) continue;
+    //   printf("Regija %d ima %d hitova\n", it.first, it.second);
+    // }
+    
 
+    int region_size = sequence_length / k_value;
+    int threshold = 10;
 
+    std::vector<region_hits> start_hits_top = find_top_3(start_hits_region, threshold);
+    std::vector<region_hits> start_hits_top_rev = find_top_3(start_hits_region_rev, threshold);
+    std::vector<region_hits> end_hits_top = find_top_3(end_hits_region, threshold);
+    std::vector<region_hits> end_hits_top_rev = find_top_3(end_hits_region_rev, threshold);
 
+    // informacije o 3 top regije
+    // printf("Pocetak :\n");
+    // for(auto it : start_hits_top){
+    //   printf("Regija %d ima %d hitova\n", it.first, it.second);
+    // }
+    // for(auto it : start_hits_top_rev){
+    //   printf("Regija %d ima %d hitova, reverse\n", it.first, it.second);
+    // }
+    // printf("Kraj: \n");
+    // for(auto it : end_hits_top){
+    //   printf("Regija %d ima %d hitova\n", it.first, it.second);
+    // }
+    // for(auto it : end_hits_top_rev){
+    //   printf("Regija %d ima %d hitova, reverse\n", it.first, it.second);
+    // }
 
+    int hits_number = 0;
+    unsigned int starting_region = 0;
+    unsigned int ending_region = 0;
+    bool rev = false;
 
-
-
-    std::vector<std::pair<region_t, unsigned int>> regions;
-
-    unsigned int b = 0;
-    for (unsigned int e = 0; e < hits.size(); ++e) {
-      if (e == hits.size() - 1 ||
-          std::get<2>(hits[e + 1]) != std::get<2>(hits[e]) ||
-          std::abs(band(hits[e + 1], hits[e])) >= bw) {
-        std::pair<region_t, unsigned int> temp_region = find_region(hits, b, e, k);
-        if (temp_region.second > 4 * k) {
-          regions.push_back(temp_region);
+    for(auto& start : start_hits_top){
+      for(auto& end : end_hits_top){
+        if(end.first == (start.first + region_size) || end.first == (start.first + region_size - 1)){
+          int sum = start.second + end.second;
+          if(sum > hits_number){
+            hits_number = sum;
+            starting_region = start.first;
+            ending_region = end.first;
+          }
         }
-        b = e + 1;
+      }
+    }
+    for(auto start : start_hits_top_rev){
+      for(auto end : end_hits_top_rev){
+        if(start.first == (end.first + region_size) || start.first == (end.first + region_size - 1)){
+          int sum = start.second + end.second;
+          if(sum > hits_number){
+            hits_number = sum;
+            starting_region = start.first;
+            ending_region = end.first;
+            rev = true;
+          }
+        }
       }
     }
 
-    if (regions.empty()) {
+    if(hits_number == 0){
+      printf("%u PRESKACEM\n", sequence_length);
+      //ispis top 3 regije za pocetak i kraj
+      // printf("Pocetak :\n");
+      // for(auto it : start_hits_top){
+      //   printf("Regija %d ima %d hitova\n", it.first, it.second);
+      // }
+      // for(auto it : start_hits_top_rev){
+      //   printf("Regija %d ima %d hitova, reverse\n", it.first, it.second);
+      // }
+      // printf("Kraj: \n");
+      // for(auto it : end_hits_top){
+      //   printf("Regija %d ima %d hitova\n", it.first, it.second);
+      // }
+      // for(auto it : end_hits_top_rev){
+      //   printf("Regija %d ima %d hitova, reverse\n", it.first, it.second);
+      // }
+      // printf("\n");
       continue;
     }
 
-    merge_regions(regions, bw);
+    // test za + 
+    // if(!rev){
+    //   int prvih10=0;
+    //   std::vector<minimizer_hit_t> v;
+    //   for(auto& minimizer : start_hits_same){
+    //    if(minimizer.second / k_value != starting_region && minimizer.second / k_value -1 != starting_region) continue;
+    //     v.push_back(minimizer);
+    //   }
+    //   std::sort(v.begin(), v.end(), 
+    //     [] (const minimizer_hit_t& a, const minimizer_hit_t& b) {
+    //     if (std::get<0>(a) == std::get<0>(b)){
+    //       return std::get<1>(a) < std::get<1>(b);
+    //     }
+    //     return std::get<0>(a) < std::get<0>(b);});
 
-    std::sort(regions.begin(), regions.end(),
-        [] (const std::pair<region_t, unsigned int>& a,
-            const std::pair<region_t, unsigned int>& b) {
-      return a.second > b.second;
-    });
+    //   for(auto& minimizer : v){
+    //     if(prvih10 > 10) break;
+    //     printf("%d , %d\n", minimizer.first, minimizer.second);
+    //     prvih10++;
+    //   }
+    //   printf("\n");
+    //   prvih10= 0;
+    //   std::vector<minimizer_hit_t> v1;
+    //   for(auto& minimizer : end_hits_same){
+    //    if(minimizer.second / k_value != ending_region && minimizer.second / k_value -1 != ending_region) continue;
+    //     v1.push_back(minimizer);
+    //   }
+    //   std::sort(v1.begin(), v1.end(),
+    //     [] (const minimizer_hit_t& a, const minimizer_hit_t& b) {
+    //     if (std::get<0>(a) == std::get<0>(b)){
+    //       return std::get<1>(a) < std::get<1>(b);
+    //     }
+    //     return std::get<0>(a) > std::get<0>(b);});
 
-    for (const auto& reg : regions) {
-      region_t max_region = reg.first;
-      unsigned int matches = reg.second;
+    //   for(auto& minimizer : v1){
+    //     if(prvih10 > 10) break;
+    //     printf("%d = %u, %d\n", minimizer.first, sequence_length - k_value - 1 + minimizer.first, minimizer.second);
+    //     prvih10++;
+    //   }
+    // }
 
-      std::string rel_strand;
-      unsigned int total;
-      unsigned int q_b, q_e, t_b, t_e;
-      std::string cigar;
-      unsigned int target_begin;
+    unsigned int start = k_value;
+    unsigned int end = 0;
+    unsigned int ref_start = 0;
+    unsigned int ref_end = 0;
 
-      t_b = std::get<1>(max_region.first);
-      t_e = std::get<1>(max_region.second) + k;
-      q_b = std::get<0>(max_region.first);
-      q_e = std::get<0>(max_region.second) + k;
-      total = (t_e - t_b);
-      
-      if (!std::get<2>(max_region.first)) {
-        rel_strand = "+";
-        if (c) {
-          brown::pairwise_alignment(fastaq_objects1[fobj]->sequence.c_str() + q_b,
-              q_e - q_b,
-              fastaq_objects2[0]->sequence.c_str() + t_b,
-              t_e - t_b,
-              alignment, match, mismatch, gap, cigar, target_begin);
-          matches = read_cigar(cigar, total);
-        }
-      } else {
-        rel_strand = "-";
-        if (c) {
-          std::string rc = reverse_complement(fastaq_objects1[fobj]->sequence, q_b,
-              q_e - q_b);
-          brown::pairwise_alignment(rc.c_str(), rc.size(),
-              fastaq_objects2[0]->sequence.c_str() + t_b,
-              t_e - t_b,
-              alignment, match, mismatch, gap, cigar, target_begin);
-          matches = read_cigar(cigar, total);
+    if(!rev){
+      for(auto& minimizer : start_hits_same){
+        if(minimizer.second / k_value != starting_region && minimizer.second / k_value -1 != starting_region) continue;
+        if(minimizer.first < start){
+          start = minimizer.first;
+          ref_start = minimizer.second;
+        } 
+      }
+      for(auto& minimizer : end_hits_same){
+        if(minimizer.second / k_value != ending_region && minimizer.second / k_value -1 != ending_region) continue;
+        if(minimizer.first > end){
+          end = minimizer.first;
+          ref_end = minimizer.second;
+        } 
+      }
+    }else{
+      for(auto& minimizer : start_hits_rev){
+        if(minimizer.second / k_value != starting_region && minimizer.second / k_value -1 != starting_region) continue;
+        if(minimizer.first < start){
+          start = minimizer.first;
+          ref_end = minimizer.second;
+        } 
+      }
+      for(auto& minimizer : end_hits_rev){
+        if(minimizer.second / k_value != ending_region && minimizer.second / k_value -1 != ending_region) continue;
+        if(minimizer.first > end){
+          end = minimizer.first;
+          ref_start = minimizer.second;
         }
       }
-      paf += fastaq_objects1[fobj]->name + "\t" +
-             std::to_string(fastaq_objects1[fobj]->sequence.size()) + "\t" +
-             std::to_string(q_b) + "\t" +
-             std::to_string(q_e) + "\t" +
-             rel_strand + "\t" +
-             fastaq_objects2[0]->name + "\t" +
-             std::to_string(fastaq_objects2[0]->sequence.size()) + "\t" +
-             std::to_string(t_b) + "\t" +
-             std::to_string(t_e) + "\t" +
-             std::to_string(matches) + "\t" +
-             std::to_string(total) + "\t" +
-             std::to_string(255);
-      if (c) {
-        paf += "\tcg:Z:" + cigar;
-      }
-      paf += "\n";
     }
-  }
-  return paf;
-}
 
+    end = sequence_length - k_value - 1 + end + k;
+    ref_end += k;
+
+    printf("%u\t%u\t%u\t%c\t%u\t%u\n", sequence_length, start, end, rev ? '-' : '+', ref_start, ref_end);
+    // printf("\n");
+  }
+  return "";
+}
 
 
 
@@ -500,6 +590,7 @@ int main (int argc, char **argv) {
   int window_length = 5;
   int k = 15;
   int t = 2;
+  float f = 0.001f;
 
   while ((optchr = getopt_long(argc, argv, "hvm:g:M:k:w:t:", long_options, NULL)) != -1) {
     switch (optchr) {
@@ -586,8 +677,8 @@ int main (int argc, char **argv) {
 
   // Print file stats
   fprintf(stderr, "\n");  
-  FastAQ::print_statistics(fastaq_objects1, file1);
-  FastAQ::print_statistics(fastaq_objects2, file2);
+  // FastAQ::print_statistics(fastaq_objects1, file1);
+  // FastAQ::print_statistics(fastaq_objects2, file2);
 
   // Regular version of reference minimizers search
   // std::vector<triplet_t> t_minimizers = brown::minimizers(
@@ -595,8 +686,8 @@ int main (int argc, char **argv) {
 
 
   //kod
-  int size = fastaq_objects1[0]->sequence.size();
-  printf("\nVelicina reference : %d\n", size);
+  // int size = fastaq_objects1[0]->sequence.size();
+  // printf("\nVelicina reference : %d\n", size);
 
   int k_value = 1000;
 
@@ -619,120 +710,29 @@ int main (int argc, char **argv) {
 
   std::unordered_map<unsigned int, minimizer_index_t> ref_index = index_ref(t_minimizers);
 
-  std::shared_ptr<thread_pool::ThreadPool> thread_pool = thread_pool::createThreadPool(t);
+  //prvih 250 - zbog testiranja
+  map_paf(std::ref(t_minimizers), std::ref(ref_index), std::ref(fastaq_objects1), std::ref(fastaq_objects2),
+      k, window_length, match, mismatch, gap, 0, 250, k_value);
 
-  std::vector<std::future<std::string>> thread_futures;
 
-  for (unsigned int tasks = 0; tasks < t - 1; ++tasks) {
-    thread_futures.emplace_back(thread_pool->submit_task(map_paf, std::ref(t_minimizers), std::ref(ref_index),
-      std::ref(fastaq_objects1), std::ref(fastaq_objects2),
-      k, window_length, alignment, match, mismatch, gap, tasks * fastaq_objects1.size() / t, (tasks + 1) * fastaq_objects1.size() / t, bw, c, k_value));  
-  }
-  thread_futures.emplace_back(thread_pool->submit_task(map_paf, std::ref(t_minimizers), std::ref(ref_index),
-      std::ref(fastaq_objects1), std::ref(fastaq_objects2),
-      k, window_length, alignment, match, mismatch, gap, (t - 1) * fastaq_objects1.size() / t, fastaq_objects1.size(), bw, c, k_value));
+  // kod za visedretvenost
+  // std::shared_ptr<thread_pool::ThreadPool> thread_pool = thread_pool::createThreadPool(t);
+
+  // std::vector<std::future<std::string>> thread_futures;
+
+  // for (unsigned int tasks = 0; tasks < t - 1; ++tasks) {
+  //   thread_futures.emplace_back(thread_pool->submit_task(map_paf, std::ref(t_minimizers), std::ref(ref_index),
+  //     std::ref(fastaq_objects1), std::ref(fastaq_objects2),
+  //     k, window_length, alignment, match, mismatch, gap, tasks * fastaq_objects1.size() / t, (tasks + 1) * fastaq_objects1.size() / t, bw, c, k_value));  
+  // }
+  // thread_futures.emplace_back(thread_pool->submit_task(map_paf, std::ref(t_minimizers), std::ref(ref_index),
+  //     std::ref(fastaq_objects1), std::ref(fastaq_objects2),
+  //     k, window_length, alignment, match, mismatch, gap, (t - 1) * fastaq_objects1.size() / t, fastaq_objects1.size(), bw, c, k_value));
   
-  for (auto& it : thread_futures) {
-    it.wait();
-    std::cout << it.get();
-  }
-
-
-
-
-
-
-
-
-
-
-
-
-  // std::multimap<unsigned int, int> rm;
-
-  // for(int i = 0; i < size ; i = i + k_value){
-  //   int length = 2 * k_value;
-  //   if(i + length > size) length = size - i;
-  //   std::string tmp = fastaq_objects1[0]->sequence.substr(i, length);
-  //   std::vector<minimizer> minimizers = brown::minimizers(tmp.c_str(), length, k, window_length);
-
-
-  //   for(auto& minimizer : minimizers){
-  //     rm.insert({std::get<0>(minimizer), i / 1000});
-  //   }
+  // for (auto& it : thread_futures) {
+  //   it.wait();
+  //   std::cout << it.get();
   // }
-
-  // printf("Velicina rm mape : %d\n\n", rm.size());
-
-  // for(int i = 0; i <  100 /*fastaq_objects2.size()*/; i++){
-  //   int sequence_length = fastaq_objects2[i]->sequence.size();
-
-  //   printf("Sekvenca br. %d, duljina sekvence : %d\n", i, sequence_length);
-    
-  //   if(sequence_length < 2 * k_value){
-  //     printf("Preskacem\n");
-  //     printf("----------------------------\n\n");
-  //     continue;
-  //   }
-
-  //   std::vector<minimizer> start_minimizers = brown::minimizers(fastaq_objects2[i]->sequence.c_str(), k_value, k, window_length);
-  //   std::vector<minimizer> end_minimizers = brown::minimizers(fastaq_objects2[i]->sequence.substr(sequence_length - k_value - 1, k_value).c_str(), k_value, k, window_length);
-
-  //   printf("Broj start_minimizers: %d , broj end_minimizers: %d \n", start_minimizers.size(), end_minimizers.size());
-  //   printf("Pocetak:\n");
-
-  //   //kopija koda
-  //   std::unordered_map<int, int> best;
-  //   for(auto& minimizer : start_minimizers){
-
-  //     auto itr1 = rm.lower_bound(std::get<0>(minimizer)); 
-  //     auto itr2 = rm.upper_bound(std::get<0>(minimizer)); 
-      
-  //     while(itr1 != itr2){
-  //       best[itr1->second]++;
-  //       itr1++;
-  //     } 
-  //   }
-
-  //   int max = 0;
-  //   int pos = 0;
-  //   for(auto& pair : best){
-  //     if(pair.second > max){
-  //       pos = pair.first;
-  //       max = pair.second;
-  //     }
-  //     if(pair.second > 40) printf("Regija %d ima %d pogodaka\n", pair.first, pair.second);
-  //   }
-  //   printf("Najbolja je %d regija, s %d pogodaka\n", pos, max);
-
-  //   printf("Kraj:\n");
-    
-  //   //kopija koda
-  //   std::unordered_map<int, int> best2;
-  //   for(auto& minimizer : end_minimizers){
-
-  //     auto itr1 = rm.lower_bound(std::get<0>(minimizer)); 
-  //     auto itr2 = rm.upper_bound(std::get<0>(minimizer)); 
-      
-  //     while(itr1 != itr2){
-  //       best2[itr1->second]++;
-  //       itr1++;
-  //     } 
-  //   }
-
-  //   max = 0;
-  //   pos = 0;
-  //   for(auto& pair : best2){
-  //     if(pair.second > max){
-  //       pos = pair.first;
-  //       max = pair.second;
-  //     }
-  //     if(pair.second > 40) printf("Regija %d ima %d pogodaka\n", pair.first, pair.second);
-  //   }
-  //   printf("Najbolja je %d regija, s %d pogodaka\n", pos, max);
-  //   printf("----------------------------\n\n");
-  // }
-
 
   return 0;
 }
