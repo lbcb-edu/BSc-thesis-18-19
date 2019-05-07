@@ -34,5 +34,5 @@ if (mapper_build_tests)
   target_link_libraries(srmapper_unittest gtest_main)
 endif (mapper_build_tests)
 
-add_executable(srmapper src/srmapper.cc src/brown_minimizers.cc)
+add_executable(srmapper src/srmapper.cc src/brown_minimizers.cc src/ksw2_extz2_sse.c)
 target_link_libraries(srmapper brown_minimizers bioparser thread_pool pthread)
