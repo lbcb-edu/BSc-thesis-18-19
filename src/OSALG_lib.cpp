@@ -55,13 +55,13 @@ namespace OSALG {
 			row[0].f_arr[i] = std::numeric_limits<int>::max();
 		}
 
-		row[0].p_arr[0].p = 1;
-		row[0].p_arr[0].q = 0;
+		row[0].p_arr[0].p = 0;
+		row[0].p_arr[0].q = -1;
 		row[0].e_arr[0] = true;
 
 		for (int i = 1; i <= 2 * L; ++i) {
-			row[0].p_arr[i].p = 0;
-			row[0].p_arr[i].q = 0;
+			row[0].p_arr[i].p = -1;
+			row[0].p_arr[i].q = -1;
 		}
 		//--------------
 
@@ -86,8 +86,8 @@ namespace OSALG {
 
 			for (int k = 0; k <= 2 * L; ++k) {
 				row[i].e_arr[k] = (row[i].d_arr_val == row[i].f_arr[k]);
-				row[i].p_arr[k].p = (row[i].e_arr[k]) ? 1 : 0;
-				row[i].p_arr[k].q = 0;
+				row[i].p_arr[k].p = (row[i].e_arr[k]) ? 0 : -1;
+				row[i].p_arr[k].q = -1;
 			}
 		}
 	}
@@ -111,14 +111,14 @@ namespace OSALG {
 
 		for (int k = 0; k <= 2 * L; ++k) {
 			current_row[0].e_arr[k] = (current_row[0].d_arr_val == current_row[0].f_arr[k]);
-			current_row[0].p_arr[k].p = (current_row[0].e_arr[k]) ? 1 : 0;
-			current_row[0].p_arr[k].q = 0;
+			current_row[0].p_arr[k].p = (current_row[0].e_arr[k]) ? 0 : -1;
+			current_row[0].p_arr[k].q = -1;
 		}
 	}
 
 	void adr_function(SAVE2_type &pp, int m, int n, std::vector<alignment_info> &row, std::vector<SAVE1_type> &primary_list) {
-		pp.p = primary_list.size() + 1;
-		pp.q = 0;
+		pp.p = primary_list.size();
+		pp.q = -1;
 
 		for (int i = 0; i <= 2 * L; ++i) {
 			if (row[n].e_arr[i]) {
@@ -130,7 +130,7 @@ namespace OSALG {
 	void link_function(SAVE2_type &pp, int m, int n, std::vector<alignment_info> &row, std::vector<SAVE2_type> &secondary_list, int i) {
 		
 		pp.p = row[n].p_arr[0].p;
-		pp.q = secondary_list.size() + 1;
+		pp.q = secondary_list.size();
 
 		secondary_list.emplace_back(row[n].p_arr[i].p, row[n].p_arr[i].q);
 	}
@@ -180,17 +180,17 @@ namespace OSALG {
 			return;
 		}
 
-		if (primary_list[primary_list_index].pointer.q != 0 && !branched) {
+		if (!branched && primary_list[primary_list_index].pointer.q != -1) {
 			cigars.emplace_back(std::string(cigars[current_editing_index]));
-			process_directional_graph(primary_list, secondary_list, cigars, cigars.size() - 1, primary_list_index, secondary_list[primary_list[primary_list_index].pointer.q - 1].p - 1, true);
+			process_directional_graph(primary_list, secondary_list, cigars, cigars.size() - 1, primary_list_index, secondary_list[primary_list[primary_list_index].pointer.q].p, true);
 
 			// loop for additional branching
-			int temp_q = secondary_list[primary_list[primary_list_index].pointer.q - 1].q;
-			while (temp_q != 0) {
+			int temp_q = secondary_list[primary_list[primary_list_index].pointer.q].q;
+			while (temp_q != -1) {
 				cigars.emplace_back(std::string(cigars[current_editing_index]));
-				process_directional_graph(primary_list, secondary_list, cigars, cigars.size() - 1, primary_list_index, secondary_list[temp_q - 1].p - 1, true);
+				process_directional_graph(primary_list, secondary_list, cigars, cigars.size() - 1, primary_list_index, secondary_list[temp_q].p, true);
 
-				temp_q = secondary_list[temp_q - 1].q;
+				temp_q = secondary_list[temp_q].q;
 			}
 		}
 
@@ -207,7 +207,7 @@ namespace OSALG {
 		editCIGAR(primary_list[next_primary_list_index].m, primary_list[next_primary_list_index].n, k, l, primary_list[primary_list_index].m, primary_list[primary_list_index].n,
 			current_editing_index, cigars);
 
-		process_directional_graph(primary_list, secondary_list, cigars, current_editing_index, next_primary_list_index, primary_list[next_primary_list_index].pointer.p - 1, false);
+		process_directional_graph(primary_list, secondary_list, cigars, current_editing_index, next_primary_list_index, primary_list[next_primary_list_index].pointer.p, false);
 	}
 
 
@@ -220,14 +220,14 @@ namespace OSALG {
 				break;
 
 			cigars.emplace_back(std::string());
-			process_directional_graph(primary_list, secondary_list, cigars, cigars.size() - 1, i, primary_list[i].pointer.p - 1, false);
+			process_directional_graph(primary_list, secondary_list, cigars, cigars.size() - 1, i, primary_list[i].pointer.p, false);
 		}
 	}
 
 	int long_gaps_alignment(std::string const &seq1, std::string const &seq2, std::vector<std::string> &cigars) {
 
 		std::vector<SAVE1_type> primary_list;
-		primary_list.emplace_back(0, 0, 0, 0);
+		primary_list.emplace_back(0, 0, -1, -1);
 		std::vector<SAVE2_type> secondary_list;
 
 		std::vector<alignment_info> previous_row(seq2.length() + 1);
