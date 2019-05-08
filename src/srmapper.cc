@@ -11,6 +11,7 @@
 #include <queue>
 #include <deque>
 #include <unordered_map>
+#include <unordered_set>
 #include <tuple>
 #include <utility>
 #include <algorithm>
@@ -46,14 +47,19 @@ typedef std::pair<std::vector<std::vector<minimizer_hit_t>>, std::vector<std::ve
 const std::set<std::string> fasta_formats = {".fasta", ".fa", ".fasta.gz", ".fa.gz"};
 const std::set<std::string> fastq_formats = {".fastq", ".fq", ".fastq.gz", ".fq.gz"};
 
+std::unordered_map<uint8_t, uint64_t> c = {{'C', 0}, {'A', 1}, {'T', 2}, {'U', 2}, {'G', 3}};
 std::unordered_map<char, char> complement_map = {{'C', 'G'}, {'A', 'T'}, {'T', 'A'}, {'U', 'A'}, {'G', 'C'}};
 
 static struct option long_options[] = {
   {"help", no_argument, NULL, 'h'},
   {"version", no_argument, NULL, 'v'},
   {"paired", no_argument, NULL, 'p'},
-  {"window_length", required_argument, NULL, 'w'},
+  {"match", required_argument, NULL, 'm'},
+  {"mismatch", required_argument, NULL, 'M'},
+  {"gap-open", required_argument, NULL, 'o'},
+  {"gap-extend", required_argument, NULL, 'e'},
   {"kmers", required_argument, NULL, 'k'},
+  {"window_length", required_argument, NULL, 'w'},
   {"frequency", required_argument, NULL, 'f'},
   {"insert_size", required_argument, NULL, 'i'},
   {"region_size", required_argument, NULL, 'r'},
@@ -63,6 +69,10 @@ static struct option long_options[] = {
 };
 
 typedef struct {
+  int32_t mch;
+  int32_t mis;
+  int32_t gapo;
+  int32_t gape;
   uint32_t k;
   uint32_t w;
   float f;
@@ -76,9 +86,7 @@ void help(void) {
 
          "Usage: srmapper [OPTIONS] reference [reads]\n"
          "  reference - FASTA file containing reference genome\n"
-         "  reads     - one or two FASTA/FASTQ file containing a set of fragments\n"
-         "              one = single-read sequencing reads\n"
-         "              two = paired-end read sequencing reads\n\n"
+         "  reads     - one or two FASTA/FASTQ file containing a set of fragments\n\n"
 
          "Supported file extensions: .fasta\n"
          "                           .fa\n"
@@ -92,7 +100,19 @@ void help(void) {
          "OPTIONS:\n"
          "  -h  or  --help           print help (displayed now) and exit\n"
          "  -v  or  --version        print version info and exit\n"
-         "  -p  or  --paired         use pairing information (needs insert size information)"
+         "  -p  or  --paired         use pairing information (needs insert size information)\n"
+         "  -m  or  --match          <int>\n"
+         "                             default: 1\n"
+         "                             match value\n"
+         "  -M  or  --mismatch       <int>\n"
+         "                             default: -2\n"
+         "                             mismatch value\n"
+         "  -o  or  --gap-open       <int>\n"
+         "                             default: 2\n"
+         "                             gap open value\n"
+         "  -e  or  --gap-extend     <int>\n"
+         "                             default: 1\n"
+         "                             gap extend value\n"
          "  -k  or  --kmers          <uint>\n"
          "                             default: 15\n"
          "                             constraints: largest supported is 16\n"
@@ -302,51 +322,52 @@ paired_checked_t check_pairing(std::pair<bin_t, bin_t>& candidates, const uint32
                                const uint32_t read_size, const uint32_t region_size) {
   paired_checked_t checked;
   for (const auto& bin : candidates.first) {
-    auto found = candidates.second.find(bin.first + ((insert_size - read_size) / region_size));
-    if (found != candidates.second.end()) {
-      checked.first.emplace_back(bin.second.begin(), bin.second.end());
-      checked.second.emplace_back(found->second.begin(), found->second.end());
-      continue;
-    }
-    found = candidates.second.find(bin.first + ((insert_size - read_size) / region_size) - 1);
-    if (found != candidates.second.end()) {
-      checked.first.emplace_back(bin.second.begin(), bin.second.end());
-      checked.second.emplace_back(found->second.begin(), found->second.end());
-      continue;
-    }
-    found = candidates.second.find(bin.first + ((insert_size - read_size) / region_size) + 1);
-    if (found != candidates.second.end()) {
-      checked.first.emplace_back(bin.second.begin(), bin.second.end());
-      checked.second.emplace_back(found->second.begin(), found->second.end());
-      continue;
-    }
-    found = candidates.second.find(bin.first - ((insert_size - read_size) / region_size));
-    if (found != candidates.second.end()) {
-      checked.first.emplace_back(bin.second.begin(), bin.second.end());
-      checked.second.emplace_back(found->second.begin(), found->second.end());
-      continue;
-    }
-    found = candidates.second.find(bin.first - ((insert_size - read_size) / region_size) - 1);
-    if (found != candidates.second.end()) {
-      checked.first.emplace_back(bin.second.begin(), bin.second.end());
-      checked.second.emplace_back(found->second.begin(), found->second.end());
-      continue;
-    }
-    found = candidates.second.find(bin.first - ((insert_size - read_size) / region_size) + 1);
-    if (found != candidates.second.end()) {
-      checked.first.emplace_back(bin.second.begin(), bin.second.end());
-      checked.second.emplace_back(found->second.begin(), found->second.end());
-      continue;
+    if (!std::get<2>(bin.second[0])) {
+      auto found = candidates.second.find(bin.first + ((insert_size - read_size) / region_size));
+      if (found != candidates.second.end()) {
+        checked.first.emplace_back(bin.second.begin(), bin.second.end());
+        checked.second.emplace_back(found->second.begin(), found->second.end());
+        continue;
+      }
+      found = candidates.second.find(bin.first + ((insert_size - read_size) / region_size) - 1);
+      if (found != candidates.second.end()) {
+        checked.first.emplace_back(bin.second.begin(), bin.second.end());
+        checked.second.emplace_back(found->second.begin(), found->second.end());
+        continue;
+      }
+      found = candidates.second.find(bin.first + ((insert_size - read_size) / region_size) + 1);
+      if (found != candidates.second.end()) {
+        checked.first.emplace_back(bin.second.begin(), bin.second.end());
+        checked.second.emplace_back(found->second.begin(), found->second.end());
+        continue;
+      }
+    } else {
+      auto found = candidates.second.find(bin.first - ((insert_size - read_size) / region_size));
+      if (found != candidates.second.end()) {
+        checked.first.emplace_back(bin.second.begin(), bin.second.end());
+        checked.second.emplace_back(found->second.begin(), found->second.end());
+        continue;
+      }
+      found = candidates.second.find(bin.first - ((insert_size - read_size) / region_size) - 1);
+      if (found != candidates.second.end()) {
+        checked.first.emplace_back(bin.second.begin(), bin.second.end());
+        checked.second.emplace_back(found->second.begin(), found->second.end());
+        continue;
+      }
+      found = candidates.second.find(bin.first - ((insert_size - read_size) / region_size) + 1);
+      if (found != candidates.second.end()) {
+        checked.first.emplace_back(bin.second.begin(), bin.second.end());
+        checked.second.emplace_back(found->second.begin(), found->second.end());
+        continue;
+      }
     }
   }
   return checked;
 }
 
-std::pair<region_t, unsigned int> find_region(std::vector<minimizer_hit_t>& hits, unsigned int k) {
-  std::pair<region_t, unsigned int> region;
-  region = std::make_pair(std::make_pair(std::make_tuple(0, 0, 0), std::make_tuple(0, 0, 0)), 0);
+region_t find_region(std::vector<minimizer_hit_t>& hits) {
   if (hits.empty()) {
-    return region;
+    return std::make_pair(std::make_tuple(0, 0, 0), std::make_tuple(0, 0, 0));
   }
   
   std::sort(hits.begin(), hits.end(), 
@@ -368,18 +389,11 @@ std::pair<region_t, unsigned int> find_region(std::vector<minimizer_hit_t>& hits
   std::vector<region_t> lis(hits.size(),
       std::make_pair(std::make_tuple(0, 0, 0), std::make_tuple(0, 0, 0)));
 
-  std::vector<unsigned int> matches(hits.size(), 0);
-
   unsigned int len = 1;
   lis[0] = std::make_pair(hits[0], hits[0]);
-  matches[0] = k;
 
   for (unsigned int i = 1; i < hits.size(); ++i) {
     if (std::get<1>(hits[i]) > std::get<1>(lis[len - 1].second)) {
-      unsigned int diff = std::get<0>(hits[i]) - std::get<0>(lis[len - 1].second);
-      diff = std::min(diff, std::get<1>(hits[i]) - std::get<1>(lis[len - 1].second));
-      diff = std::min(diff, k);
-      matches[len] = matches[len - 1] + diff;
       lis[len] = lis[len - 1];
       lis[len].second = hits[i];
       len++;
@@ -393,20 +407,15 @@ std::pair<region_t, unsigned int> find_region(std::vector<minimizer_hit_t>& hits
         *pair_it = std::make_pair(hits[i], hits[i]);
       } else {
         *pair_it = std::make_pair((pair_it - 1)->first, hits[i]);
-        unsigned int diff = std::get<0>(hits[i]) - std::get<0>((pair_it - 1)->second);
-        diff = std::min(diff, std::get<1>(hits[i]) - std::get<1>((pair_it - 1)->second));
-        diff = std::min(diff, k);
-        matches[pair_it - lis.begin()] = matches[pair_it - 1 - lis.begin()] + diff;
       }
     }
   }
-  region_t max_reg = lis[len - 1];
-  if (std::get<2>(max_reg.first) == 1) {
-    unsigned int temp = std::get<0>(max_reg.first);
-    std::get<0>(max_reg.first) = std::get<0>(max_reg.second);
-    std::get<0>(max_reg.second) = temp;
+  region_t region = lis[len - 1];
+  if (std::get<2>(region.first) == 1) {
+    unsigned int temp = std::get<0>(region.first);
+    std::get<0>(region.first) = std::get<0>(region.second);
+    std::get<0>(region.second) = temp;
   }
-  region = std::make_pair(max_reg, 0);
   return region; 
 }
 
@@ -422,55 +431,157 @@ void expand_region(region_t& reg, uint32_t read_size, uint32_t k, uint32_t max_s
   std::get<0>(reg.second) = read_size - 1;
 }
 
-void map_single(const std::unordered_map<uint64_t, index_pos_t>& ref_index, const std::vector<minimizer_t>& t_minimizers,
-                const std::vector<std::unique_ptr<fastaq::FastAQ>>& reference, 
-                const std::vector<std::unique_ptr<fastaq::FastAQ>>& reads, const mapping_params& parameters) {
-  std::string sam;
-  for (uint32_t i = 0; i < reads.size(); ++i) {
-    std::vector<minimizer_t> q_minimizers = brown::minimizers(reads[i]->sequence.c_str(), reads[i]->sequence.size(),
-                                                             parameters.k, parameters.w);
-    split_hits_t hits;
-    find_minimizer_hits(hits.first, hits.second, ref_index, t_minimizers, q_minimizers);
-    radixsort(hits.first);
-    radixsort(hits.second);
-    std::pair<bin_t, bin_t> candidates(extract_candidates(hits.first, parameters.threshold, parameters.region_size),
-                                       extract_candidates(hits.second, parameters.threshold, parameters.region_size));
-    for (auto& bin : candidates.first) {
-      auto reg = find_region(bin.second, parameters.k);
-      expand_region(reg.first, parameters.region_size, parameters.k, reference[0]->sequence.size() - 1);
-      sam += reads[i]->name.substr(0, reads[i]->name.find('/', 0)) + "\t" +
-             "FLAGS" + "\t" +
-             reference[0]->name + "\t" +
-             std::to_string(std::get<1>(reg.first.first) + 1) + "\t" +
-             "255" + "\t" +
-             "100M?" + "\t" +
-             "*" + "\t" +
-             "0" + "\t" +
-             "0" + "\t" +
-             reads[i]->sequence + "\t" +
-             reads[i]->quality + "\t" +
-             "OPT\n";
-             
-    }
-    for (auto& bin : candidates.second) {
-      auto reg = find_region(bin.second, parameters.k);
-      expand_region(reg.first, parameters.region_size, parameters.k, reference[0]->sequence.size() - 1);
-      sam += reads[i]->name.substr(0, reads[i]->name.find('/', 0)) + "\t" +
-             "FLAGS" + "\t" +
-             reference[0]->name + "\t" +
-             std::to_string(std::get<1>(reg.first.first) + 1) + "\t" +
-             "255" + "\t" +
-             "100M?" + "\t" +
-             "*" + "\t" +
-             "0" + "\t" +
-             "0" + "\t" +
-             reverse_complement(reads[i]->sequence, 0, reads[i]->sequence.size()) + "\t" +
-             std::string(reads[i]->quality.rbegin(), reads[i]->quality.rend()) + "\t" +
-             "OPT\n";
-    }
+std::string ksw2(const std::string& target, const std::string& query, const region_t& region, 
+                 int32_t mch, int32_t mis, int32_t gapo, int32_t gape) {
+  int a = mch;
+  int b = mis;
+  int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
+  int len = query.size();
+  uint8_t *ts, *qs;
+  ksw_extz_t ez;
+  memset(&ez, 0, sizeof(ksw_extz_t));
+  ts = (uint8_t*)malloc(len);
+  qs = (uint8_t*)malloc(len);
+  for (int i = 0; i < len; ++i) {
+    ts[i] = c[(uint8_t)target.c_str()[i + std::get<1>(region.first)]]; // encode to 0/1/2/3
+    qs[i] = c[(uint8_t)query.c_str()[i]];
   }
-  std::cout << sam;
+  ksw_extz2_sse(0, len, qs, len, ts, 5, mat, gapo, gape, -1, -1, 0, 0, &ez);
+  std::string cigar;
+  for (int i = 0; i < ez.n_cigar; ++i) {
+    cigar += std::to_string(ez.cigar[i]>>4) + "MIDNSHP=X"[ez.cigar[i]&0xf];
+  }
+  free(ez.cigar); free(ts); free(qs);
+  return cigar;
 }
+
+std::pair<std::string, std::string> sam_format_pair(const std::string& qname,
+    const std::string& query1, const std::string& qual1, const std::string& query2, const std::string& qual2,
+    const std::string& rname, const std::string& ref,
+    const std::pair<region_t, region_t>& region_pair, const mapping_params& parameters) {
+  std::string sam_name = qname.substr(0, qname.find('/', 0));
+  int32_t insert_size = std::get<1>(region_pair.first.first) < std::get<1>(region_pair.second.first)
+                        ? std::get<1>(region_pair.second.second) - std::get<1>(region_pair.first.first)
+                        : std::get<1>(region_pair.second.first) - std::get<1>(region_pair.first.second);
+  std::string cigar1 = ksw2(ref, query1, region_pair.first, 
+                            parameters.mch, parameters.mis, parameters.gapo, parameters.gape);
+  std::string sam1 = sam_name + "\t" +
+                     "FLAGS" + "\t" +
+                     rname + "\t" +
+                     std::to_string(std::get<1>(region_pair.first.first) + 1) + "\t" +
+                     "255" + "\t" +
+                     cigar1 + "\t" +
+                     "=" + "\t" +
+                     std::to_string(std::get<1>(region_pair.second.first) + 1) + "\t" +
+                     std::to_string(insert_size) + "\t" +
+                     query1 + "\t" +
+                     qual1 + "\t" +
+                     "OPT\n";
+  std::string cigar2 = ksw2(ref, query2, region_pair.second, 
+                            parameters.mch, parameters.mis, parameters.gapo, parameters.gape);
+  std::string sam2 = sam_name + "\t" +
+                     "FLAGS" + "\t" +
+                     rname + "\t" +
+                     std::to_string(std::get<1>(region_pair.second.first) + 1) + "\t" +
+                     "255" + "\t" +
+                     cigar2 + "\t" +
+                     "=" + "\t" +
+                     std::to_string(std::get<1>(region_pair.first.first) + 1) + "\t" +
+                     std::to_string(-insert_size) + "\t" +
+                     query2 + "\t" +
+                     qual2 + "\t" +
+                     "OPT\n";
+  return std::make_pair(sam1, sam2);
+}
+
+void process_pairs(std::vector<std::pair<uint32_t, std::string>>& mappings, paired_checked_t& checked,
+                   const std::vector<std::unique_ptr<fastaq::FastAQ>>& reference, 
+                   const paired_reads_t& paired_reads, uint32_t i, const mapping_params& parameters, 
+                   bool rev_flag) {
+  std::unordered_set<uint32_t> processed;
+  for (uint32_t j = 0; j < checked.first.size(); ++j) {
+    std::pair<region_t, region_t> region_pair(find_region(checked.first[j]),
+                                              find_region(checked.second[j]));
+    expand_region(region_pair.first, parameters.region_size, 
+                  parameters.k, reference[0]->sequence.size() - 1);
+    expand_region(region_pair.second, parameters.region_size, 
+                  parameters.k, reference[0]->sequence.size() - 1);
+    if (processed.find(std::get<1>(region_pair.first.first)) != processed.end()) continue;
+    processed.insert(std::get<1>(region_pair.first.first));
+    std::string rc;
+    std::string rq;
+    std::string* query1 = !rev_flag
+                          ? &(paired_reads.first[i]->sequence)
+                          : &(rc = reverse_complement(paired_reads.first[i]->sequence, 0, paired_reads.first[i]->sequence.size()));
+    std::string* quality1 = !rev_flag
+                            ? &(paired_reads.first[i]->quality)
+                            : &(rq = std::string(paired_reads.first[i]->quality.rbegin(), paired_reads.first[i]->quality.rend()));
+    std::string* query2 = rev_flag
+                          ? &(paired_reads.second[i]->sequence)
+                          : &(rc = reverse_complement(paired_reads.second[i]->sequence, 0, paired_reads.second[i]->sequence.size()));
+    std::string* quality2 = rev_flag
+                            ? &(paired_reads.second[i]->quality)
+                            : &(rq = std::string(paired_reads.second[i]->quality.rbegin(), paired_reads.second[i]->quality.rend()));
+    std::pair<std::string, std::string> sam_pair = sam_format_pair(
+        paired_reads.first[i]->name,
+        *query1, *quality1, 
+        *query2, *quality2, 
+        reference[0]->name, reference[0]->sequence, region_pair, parameters);
+
+    mappings.emplace_back(0, sam_pair.first);
+    mappings.emplace_back(0, sam_pair.second);
+  }
+}
+
+// void map_single(const std::unordered_map<uint64_t, index_pos_t>& ref_index, const std::vector<minimizer_t>& t_minimizers,
+//                 const std::vector<std::unique_ptr<fastaq::FastAQ>>& reference, 
+//                 const std::vector<std::unique_ptr<fastaq::FastAQ>>& reads, const mapping_params& parameters) {
+//   std::string sam;
+//   for (uint32_t i = 0; i < reads.size(); ++i) {
+//     std::vector<minimizer_t> q_minimizers = brown::minimizers(reads[i]->sequence.c_str(), reads[i]->sequence.size(),
+//                                                              parameters.k, parameters.w);
+//     split_hits_t hits;
+//     find_minimizer_hits(hits.first, hits.second, ref_index, t_minimizers, q_minimizers);
+//     radixsort(hits.first);
+//     radixsort(hits.second);
+//     std::pair<bin_t, bin_t> candidates(extract_candidates(hits.first, parameters.threshold, parameters.region_size),
+//                                        extract_candidates(hits.second, parameters.threshold, parameters.region_size));
+//     for (auto& bin : candidates.first) {
+//       auto reg = find_region(bin.second, parameters.k);
+//       expand_region(reg.first, parameters.region_size, parameters.k, reference[0]->sequence.size() - 1);
+//       sam += reads[i]->name.substr(0, reads[i]->name.find('/', 0)) + "\t" +
+//              "FLAGS" + "\t" +
+//              reference[0]->name + "\t" +
+//              std::to_string(std::get<1>(reg.first.first) + 1) + "\t" +
+//              "255" + "\t" +
+//              "100M?" + "\t" +
+//              "*" + "\t" +
+//              "0" + "\t" +
+//              "0" + "\t" +
+//              reads[i]->sequence + "\t" +
+//              reads[i]->quality + "\t" +
+//              "OPT\n";
+             
+//     }
+//     for (auto& bin : candidates.second) {
+//       auto reg = find_region(bin.second, parameters.k);
+//       expand_region(reg.first, parameters.region_size, parameters.k, reference[0]->sequence.size() - 1);
+//       sam += reads[i]->name.substr(0, reads[i]->name.find('/', 0)) + "\t" +
+//              "FLAGS" + "\t" +
+//              reference[0]->name + "\t" +
+//              std::to_string(std::get<1>(reg.first.first) + 1) + "\t" +
+//              "255" + "\t" +
+//              "100M?" + "\t" +
+//              "*" + "\t" +
+//              "0" + "\t" +
+//              "0" + "\t" +
+//              reverse_complement(reads[i]->sequence, 0, reads[i]->sequence.size()) + "\t" +
+//              std::string(reads[i]->quality.rbegin(), reads[i]->quality.rend()) + "\t" +
+//              "OPT\n";
+//     }
+//   }
+//   std::cout << sam;
+// }
 
 void map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_index, const std::vector<minimizer_t>& t_minimizers,
                 const std::vector<std::unique_ptr<fastaq::FastAQ>>& reference, const paired_reads_t& paired_reads,
@@ -497,82 +608,18 @@ void map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_index, cons
         extract_candidates(hits1.first, parameters.threshold, parameters.region_size),
         extract_candidates(hits2.second, parameters.threshold, parameters.region_size));
     std::pair<bin_t, bin_t> candidates2(
-        extract_candidates(hits2.first, parameters.threshold, parameters.region_size),
-        extract_candidates(hits1.second, parameters.threshold, parameters.region_size));
+        extract_candidates(hits1.second, parameters.threshold, parameters.region_size),
+        extract_candidates(hits2.first, parameters.threshold, parameters.region_size));
     paired_checked_t checked1 = check_pairing(candidates1, parameters.insert_size, parameters.region_size,
                                               paired_reads.second[i]->sequence.size());
     paired_checked_t checked2 = check_pairing(candidates2, parameters.insert_size, parameters.region_size,
                                               paired_reads.first[i]->sequence.size());
-    std::vector<region_t> regions[4];
-    for (auto& hits : checked1.first) {
-      std::pair<region_t, unsigned int> reg = find_region(hits, parameters.k);
-      expand_region(reg.first, parameters.region_size, parameters.k, reference[0]->sequence.size() - 1);
-      regions[0].push_back(reg.first);
-    }
-    for (auto& hits : checked2.second) {
-      std::pair<region_t, unsigned int> reg = find_region(hits, parameters.k);
-      expand_region(reg.first, parameters.region_size, parameters.k, reference[0]->sequence.size() - 1);
-      regions[1].push_back(reg.first);
-    }
-    for (auto& hits : checked1.second) {
-      std::pair<region_t, unsigned int> reg = find_region(hits, parameters.k);
-      expand_region(reg.first, parameters.region_size, parameters.k, reference[0]->sequence.size() - 1);
-      regions[2].push_back(reg.first);
-    }
-    for (auto& hits : checked2.first) {
-      std::pair<region_t, unsigned int> reg = find_region(hits, parameters.k);
-      expand_region(reg.first, parameters.region_size, parameters.k, reference[0]->sequence.size() - 1);
-      regions[3].push_back(reg.first);
-    }
-    std::string rc;
-    std::string rq;
-    for (uint32_t j = 0; j < 4; ++j) {
-      for (const auto& region : regions[j]) {
-        std::string* seq  = j < 2 ? &(paired_reads.first[i]->sequence) : &(paired_reads.second[i]->sequence);
-        seq  = j == 0 || j == 3 ? seq : &(rc = reverse_complement(*seq, 0, seq->size()));
-        std::string* qual = j < 2 ? &(paired_reads.first[i]->quality) : &(paired_reads.second[i]->quality);
-        qual = j == 0 || j == 3 ? qual : &(rq = std::string(qual->rbegin(), qual->rend()));
-        uint32_t pair_index = j < 2 ? j + 2 : j - 2;
-        int32_t pair = regions[pair_index].size() ? std::get<1>(regions[pair_index][0].first) : 0;
-        int32_t ins = pair - (int32_t)std::get<1>(region.first);
-        int32_t sz = pair_index < 2 ? paired_reads.first[i]->sequence.size() : paired_reads.second[i]->sequence.size();
-        ins += ins > 0 ? sz : -sz;
 
-        // KSW2
-        int a = 1;
-        int b = -2;
-        int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
-        int len = seq->size();
-        uint8_t *ts, *qs;
-        std::unordered_map<uint8_t, uint64_t> c = {{'C', 0}, {'A', 1}, {'T', 2}, {'U', 2}, {'G', 3}};
-        ksw_extz_t ez;
-        memset(&ez, 0, sizeof(ksw_extz_t));
-        ts = (uint8_t*)malloc(len);
-        qs = (uint8_t*)malloc(len);
-        for (int k = 0; k < len; ++k) {
-          ts[k] = c[(uint8_t)reference[0]->sequence.c_str()[k + std::get<1>(region.first)]]; // encode to 0/1/2/3
-          qs[k] = c[(uint8_t)seq->c_str()[k]];
-        }
-        ksw_extz2_sse(0, len, qs, len, ts, 5, mat, 2, 1, -1, -1, 0, 0, &ez);
-        std::string cigar;
-        for (int k = 0; k < ez.n_cigar; ++k) {
-          cigar += std::to_string(ez.cigar[k]>>4) + "MIDSH"[ez.cigar[k]&0xf];
-        }
-
-        sam += paired_reads.first[i]->name.substr(0, paired_reads.first[i]->name.find('/', 0)) + "\t" +
-               "FLAGS" + "\t" +
-               reference[0]->name + "\t" +
-               std::to_string(std::get<1>(region.first) + 1) + "\t" +
-               "255" + "\t" +
-               cigar + "\t" +
-               "=" + "\t" +
-               std::to_string(pair + 1) + "\t" +
-               std::to_string(ins) + "\t" +
-               *seq + "\t" +
-               *qual + "\t" +
-               "OPT\n";
-        free(ez.cigar); free(ts); free(qs);
-      }
+    std::vector<std::pair<uint32_t, std::string>> mappings;
+    process_pairs(mappings, checked1, reference, paired_reads, i, parameters, 0);
+    process_pairs(mappings, checked2, reference, paired_reads, i, parameters, 1);
+    for (const auto& m : mappings) {
+      sam += m.second;
     }
   }
   std::cout << sam;
@@ -581,6 +628,10 @@ void map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_index, cons
 int main(int argc, char **argv) {
   int optchr;
   mapping_params parameters;
+  parameters.mch = 1;
+  parameters.mis = -2;
+  parameters.gapo = 2;
+  parameters.gape = 1;
   parameters.k = 18;
   parameters.w = 3;
   parameters.f = 0.001f;
@@ -590,7 +641,7 @@ int main(int argc, char **argv) {
   bool paired = false;
   uint32_t threads = 3;
 
-  while ((optchr = getopt_long(argc, argv, "hvk:w:f:i:r:t:T:p", long_options, NULL)) != -1) {
+  while ((optchr = getopt_long(argc, argv, "hvpm:M:o:e:k:w:f:i:r:t:T:", long_options, NULL)) != -1) {
     switch (optchr) {
       case 'h': {
         help();
@@ -602,6 +653,22 @@ int main(int argc, char **argv) {
       }
       case 'p': {
         paired = true;
+        break;
+      }
+      case 'm': {
+        parameters.mch = atoi(optarg);
+        break;
+      }
+      case 'M': {
+        parameters.mis = atoi(optarg);
+        break;
+      }
+      case 'o': {
+        parameters.gapo = atoi(optarg);
+        break;
+      }
+      case 'e': {
+        parameters.gape = atoi(optarg);
         break;
       }
       case 'k': {
@@ -717,8 +784,8 @@ int main(int argc, char **argv) {
       }
       map_paired(ref_index, t_minimizers, reference, paired_reads, parameters);
     } else {
-      map_single(ref_index, t_minimizers, reference, paired_reads.first, parameters);
-      map_single(ref_index, t_minimizers, reference, paired_reads.second, parameters);
+      // map_single(ref_index, t_minimizers, reference, paired_reads.first, parameters);
+      // map_single(ref_index, t_minimizers, reference, paired_reads.second, parameters);
     }
   } else {
     fprintf(stderr, "\nLoading reads... ");
@@ -733,7 +800,7 @@ int main(int argc, char **argv) {
     fprintf(stderr, "\rLoaded reads.        \n");
     fastaq::FastAQ::print_statistics(reads, reads_file);
 
-    map_single(ref_index, t_minimizers, reference, reads, parameters);
+    // map_single(ref_index, t_minimizers, reference, reads, parameters);
   }
 
   auto end = std::chrono::steady_clock::now();
