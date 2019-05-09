@@ -4,6 +4,7 @@
 #include <limits>
 #include "OSALG_lib.h"
 
+#define N_BORDER 30
 #define L 2
 #define MATCH_SCORE -2
 #define MISMATCH_SCORE 4
@@ -161,7 +162,7 @@ namespace OSALG {
 			temp = m - k;
 			
 			if (temp != 0) {
-				cigars[current_editing_index] = std::to_string(temp) + "D" + cigars[current_editing_index];
+				cigars[current_editing_index] = std::to_string(temp) + ((temp < N_BORDER) ? "D" : "N") + cigars[current_editing_index];
 			}
 		}
 
@@ -280,12 +281,6 @@ namespace OSALG {
 					current_row[n].p_arr[0] = previous_row[n - 1].p_arr[0];
 				}
 
-				//printf("%d %d %d ttt %d %d %d ttt %d %d %d ttt %d %d %d ttt %d ovo %d, %d\n", current_row[n].f_arr[0], current_row[n].f_arr[1], current_row[n].f_arr[2],
-				//current_row[n].e_arr[0] ? 1 : 0, current_row[n].e_arr[1] ? 1 : 0, current_row[n].e_arr[2] ? 1 : 0,
-				//current_row[n].p_arr[0].p, current_row[n].p_arr[1].p, current_row[n].p_arr[2].p,
-				//current_row[n].p_arr[0].q, current_row[n].p_arr[1].q, current_row[n].p_arr[2].q,
-				//current_row[n].d_arr_val, m, n);
-
 			}
 
 			previous_row = current_row;
@@ -293,18 +288,6 @@ namespace OSALG {
 
 		SAVE2_type p_last;
 		adr_function(p_last, seq1.length(), seq2.length(), current_row, primary_list);
-
-		/*
-		printf("prim\n");
-		for(int i = 0; i < primary_list.size(); ++i) {
-			printf("%d %d %d %d == %d\n", primary_list[i].m, primary_list[i].n, primary_list[i].pointer.p, primary_list[i].pointer.q, i+1);
-		}
-
-		printf("sec\n");
-		for(int i = 0; i < secondary_list.size(); ++i) {
-			printf("%d %d == %d\n", secondary_list[i].p, secondary_list[i].q, i + 1);
-		}
-		*/
 
 		fill_CIGARS_storage(primary_list, secondary_list, cigars, seq1, seq2);
 
