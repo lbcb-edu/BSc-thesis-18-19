@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string>
 #include <vector>
+#include <iostream>
 
 #include "bioparser/bioparser.hpp"
 
@@ -155,10 +156,10 @@ int main(int argc, char **argv) {
 
 	std::vector<std::unique_ptr<FASTAQEntity>> ref_entries = readFASTAFile(secondFilePath);
 
-	for(auto const &query : query_entries) {
-		for(auto const &ref : ref_entries) {
+	for(auto const &ref : ref_entries) {
+		for(auto const &query : query_entries) {
 			std::vector<std::string> cigars;
-			OSALG::long_gaps_alignment(query->sequence, ref->sequence, cigars);
+			OSALG::long_gaps_alignment(ref->sequence, query->sequence, cigars);
 
 			printf("----------------------\n");
 			printf("reference: %s\n", (ref->name).c_str());
@@ -172,16 +173,6 @@ int main(int argc, char **argv) {
 			printf("----------------------\n");
 		}
 	}
-
-	//std::vector<std::string> cigars;
-	//OSALG::long_gaps_alignment("AGTGATCCCTGAAGTTGC", "TGAGTTTCAGCTCAAAGGGTCTCGATCTCC", cigars);
-	//OSALG::long_gaps_alignment("AGTGATCC", "TGAGTTTCAG", cigars);
-	//OSALG::long_gaps_alignment("GATCC", "TTCAG", cigars);
-	//OSALG::long_gaps_alignment("AGTGAC", "TGAGCTT", cigars);
-
-	//for(int i = 0; i < cigars.size(); ++i) {
-	//	printf("%s\n", cigars[i].c_str());
-	//}
 
 	return 0;
 }
