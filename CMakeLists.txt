@@ -12,6 +12,10 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic")
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(EXEC_FILES src/srmapper.cc src/brown_minimizers.cc src/ksw2_extz2_sse.c
+               src/index.cc src/map.cc src/radixsort.cc src/region.cc
+               src/revcomp.cc src/sam.cc)
+
 option(mapper_build_tests "Build mapper unit tests" OFF)
 
 configure_file(
@@ -34,5 +38,5 @@ if (mapper_build_tests)
   target_link_libraries(srmapper_unittest gtest_main)
 endif (mapper_build_tests)
 
-add_executable(srmapper src/srmapper.cc src/brown_minimizers.cc src/ksw2_extz2_sse.c)
+add_executable(srmapper ${EXEC_FILES})
 target_link_libraries(srmapper brown_minimizers bioparser thread_pool pthread)
