@@ -155,8 +155,11 @@ int main(int argc, char **argv) {
   parameters.threshold = 2;
   bool paired = false;
   uint32_t t = 3;
+  std::string cl_flags;
 
   while ((optchr = getopt_long(argc, argv, "hvpm:M:o:e:b:k:w:f:i:r:t:T:", long_options, NULL)) != -1) {
+    cl_flags += "-", cl_flags += optchr, cl_flags += " ";
+    if (optarg != nullptr) cl_flags += optarg, cl_flags += " ";
     switch (optchr) {
       case 'h': {
         help();
@@ -291,6 +294,10 @@ int main(int argc, char **argv) {
   
   auto m_start = std::chrono::steady_clock::now();
 
+  std::cout << "@HD\tVN:1.6\n"
+               "@SQ\tSN:" << reference[0]->name << "\tLN:" << reference[0]->sequence.size() << "\n"
+               "@PG\tID:srmapper\tPN:srmapper\tCL:" << argv[0] << " " << cl_flags << argv[optind] << " ";
+
   if (argc - optind == 3) {
     fprintf(stderr, "\nLoading paired-end reads... ");
 
@@ -320,6 +327,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "[srmapper] warning: Reads are not of fixed size.\n");
       }
     }
+    std::cout << argv[optind + 1] << " " << argv[optind + 2] << "\n";
     std::vector<std::future<std::string>> thread_futures;
       for (unsigned int tasks = 0; tasks < t - 1; ++tasks) {
         thread_futures.emplace_back(thread_pool->submit_task(paired ? map_paired : map_as_single, 
@@ -345,6 +353,8 @@ int main(int argc, char **argv) {
 
     fprintf(stderr, "\rLoaded reads.        \n");
     fastaq::FastAQ::print_statistics(reads, reads_file);
+
+    std::cout << argv[optind + 1] << "\n";
 
     std::vector<std::future<std::string>> thread_futures;
     for (unsigned int tasks = 0; tasks < t - 1; ++tasks) {
