@@ -7,8 +7,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 #version
 set (OptSeqAlignmentLongGaps_VERSION_MAJOR 0)
-set (OptSeqAlignmentLongGaps_VERSION_MINOR 5)
-set (OptSeqAlignmentLongGaps_VERSION_PATCH 1)
+set (OptSeqAlignmentLongGaps_VERSION_MINOR 9)
+set (OptSeqAlignmentLongGaps_VERSION_PATCH 0)
 
 set(CMAKE_CXX_STANDARD 11)
 
