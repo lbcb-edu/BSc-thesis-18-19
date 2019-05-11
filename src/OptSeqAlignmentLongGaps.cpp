@@ -12,7 +12,8 @@
 
 struct option options[] = {
 	{"version", no_argument, 0, 'v'},
-	{"help", no_argument, 0, 'h'}
+	{"help", no_argument, 0, 'h'},
+	{"extended", no_argument, 0, 'e'}
 };
 
 class FASTAQEntity {
@@ -63,6 +64,7 @@ void help() {
 		"options: \n"
         	"	-h, --help  -  prints help menu (currently displaying)\n"
         	"	-v, --version  -  prints program version\n"
+		"	-e, --extended - constructed CIGARS will include \'=\'(match) and \'X\'(mismatch) characters instead of \'M\'\n"
 		"==================\n"
 		"\n"
 	);
@@ -110,7 +112,8 @@ int main(int argc, char **argv) {
 	
 	char optchr;
 	int option_index = 0;
-	while((optchr = getopt_long(argc, argv, "hv", options, &option_index)) != -1) {
+	bool extended_cigar = false;
+	while((optchr = getopt_long(argc, argv, "hve", options, &option_index)) != -1) {
 		switch(optchr) {
 		
 			case 0:
@@ -120,6 +123,9 @@ int main(int argc, char **argv) {
 				break;
 			case 'v':
 				version();
+				break;
+			case 'e':
+				extended_cigar = true;
 				break;
 			default:
 				fprintf(stderr, "Entered option is not valid.\n");
@@ -159,7 +165,7 @@ int main(int argc, char **argv) {
 	for(auto const &ref : ref_entries) {
 		for(auto const &query : query_entries) {
 			std::vector<std::string> cigars;
-			OSALG::long_gaps_alignment(ref->sequence, query->sequence, cigars);
+			OSALG::long_gaps_alignment(ref->sequence, query->sequence, cigars, extended_cigar);
 
 			printf("----------------------\n");
 			printf("reference: %s\n", (ref->name).c_str());
