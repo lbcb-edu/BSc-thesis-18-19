@@ -47,38 +47,33 @@ bin_t extract_candidates(const std::vector<minimizer_hit_t>& hits, const uint32_
   std::vector<minimizer_hit_t> temp_c;
   std::vector<minimizer_hit_t> temp_n;
   uint32_t current = 0;
-  uint32_t count = 0;
   uint32_t next = 0;
-  uint32_t next_count = 0;
   for (uint32_t i = 0; i < hits.size(); ++i) {
     if (std::get<1>(hits[i]) / region_size == current) {
-      count++;
       temp_c.push_back(hits[i]);
       continue;
     }
     if (std::get<1>(hits[i]) / region_size == current + 1) {
-      count++;
-      next_count++;
       next = current + 1;
       temp_c.push_back(hits[i]);
       temp_n.push_back(hits[i]);
       continue;
     }
-    if (count >= threshold) {
-      candidates[current] = temp_c;
+    if (temp_c.size() >= threshold) {
+      candidates[current] = std::move(temp_c);
     }
     if (next == current + 1) {
       current = next;
-      count = next_count;
-      temp_c.assign(temp_n.begin(), temp_n.end());
+      temp_c = std::move(temp_n);
       temp_n.clear();
     } else {
       current = std::get<1>(hits[i]) / region_size;
-      count = 1;
+      temp_c.clear();
+      temp_c.push_back(hits[i]);
     }
   }
-  if (count >= threshold) {
-    candidates[current] = temp_c;
+  if (temp_c.size() >= threshold) {
+    candidates[current] = std::move(temp_c);
   }
   return candidates;
 }
@@ -95,43 +90,20 @@ paired_checked_t check_pairing(std::pair<bin_t, bin_t>& candidates, const uint32
                                const uint32_t read_size, const uint32_t region_size) {
   paired_checked_t checked;
   for (const auto& bin : candidates.first) {
+    bin_t::const_iterator found;
     if (!std::get<2>(bin.second[0])) {
-      auto found = candidates.second.find(bin.first + ((insert_size - read_size) / region_size));
-      if (found != candidates.second.end()) {
+      if ((found = candidates.second.find(bin.first + ((insert_size - read_size) / region_size))) != candidates.second.end()
+          || (found = candidates.second.find(bin.first + ((insert_size - read_size) / region_size) - 1)) != candidates.second.end()
+          || (found = candidates.second.find(bin.first + ((insert_size - read_size) / region_size) + 1)) != candidates.second.end()) {
         checked.first.emplace_back(bin.second.begin(), bin.second.end());
         checked.second.emplace_back(found->second.begin(), found->second.end());
-        continue;
-      }
-      found = candidates.second.find(bin.first + ((insert_size - read_size) / region_size) - 1);
-      if (found != candidates.second.end()) {
-        checked.first.emplace_back(bin.second.begin(), bin.second.end());
-        checked.second.emplace_back(found->second.begin(), found->second.end());
-        continue;
-      }
-      found = candidates.second.find(bin.first + ((insert_size - read_size) / region_size) + 1);
-      if (found != candidates.second.end()) {
-        checked.first.emplace_back(bin.second.begin(), bin.second.end());
-        checked.second.emplace_back(found->second.begin(), found->second.end());
-        continue;
       }
     } else {
-      auto found = candidates.second.find(bin.first - ((insert_size - read_size) / region_size));
-      if (found != candidates.second.end()) {
+      if ((found = candidates.second.find(bin.first - ((insert_size - read_size) / region_size))) != candidates.second.end()
+          || (found = candidates.second.find(bin.first - ((insert_size - read_size) / region_size) - 1)) != candidates.second.end()
+          || (found = candidates.second.find(bin.first - ((insert_size - read_size) / region_size) + 1)) != candidates.second.end()) {
         checked.first.emplace_back(bin.second.begin(), bin.second.end());
         checked.second.emplace_back(found->second.begin(), found->second.end());
-        continue;
-      }
-      found = candidates.second.find(bin.first - ((insert_size - read_size) / region_size) - 1);
-      if (found != candidates.second.end()) {
-        checked.first.emplace_back(bin.second.begin(), bin.second.end());
-        checked.second.emplace_back(found->second.begin(), found->second.end());
-        continue;
-      }
-      found = candidates.second.find(bin.first - ((insert_size - read_size) / region_size) + 1);
-      if (found != candidates.second.end()) {
-        checked.first.emplace_back(bin.second.begin(), bin.second.end());
-        checked.second.emplace_back(found->second.begin(), found->second.end());
-        continue;
       }
     }
   }
