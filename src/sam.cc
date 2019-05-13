@@ -67,9 +67,10 @@ std::tuple<uint32_t, int32_t, std::string> ksw2(const std::string& target, const
 //       region     - mapping region
 //       parameters - mapping parameters
 // Return: mapping in SAM format
-std::string sam_format_single(const std::string& qname, const std::string& query, const std::string& qual,
-                              const std::string& rname, const std::string& ref, const region_t& region, 
-                              const mapping_params& parameters) {
+std::pair<uint32_t, std::string> sam_format_single(const std::string& qname, const std::string& query, 
+                                                   const std::string& qual, const std::string& rname, 
+                                                   const std::string& ref, const region_t& region, 
+                                                   const mapping_params& parameters) {
   std::string sam_name = qname.substr(0, qname.find('/', 0));
   std::tuple<uint32_t, int32_t, std::string> cigar = ksw2(ref, query, region, parameters);
   int flag = std::get<2>(region.first) ? 0x10 : 0x0;
@@ -87,7 +88,7 @@ std::string sam_format_single(const std::string& qname, const std::string& query
                     qual + "\t" +
                     "NM:i:" + std::to_string(query.size() - std::get<0>(cigar)) + "\t" +
                     "AS:i:" + std::to_string(std::get<1>(cigar)) + "\n";
-  return sam;
+  return std::make_pair(mapq, sam);
 }
 
 // Generates paired mapping in SAM format
@@ -101,7 +102,7 @@ std::string sam_format_single(const std::string& qname, const std::string& query
 //       region_pair - paired mapping region
 //       parameters  - mapping parameters
 // Return: paired mapping in SAM format
-std::pair<std::string, std::string> sam_format_pair(const std::string& qname,
+std::pair<uint32_t, std::pair<std::string, std::string>> sam_format_pair(const std::string& qname,
     const std::string& query1, const std::string& qual1, const std::string& query2, const std::string& qual2,
     const std::string& rname, const std::string& ref,
     const std::pair<region_t, region_t>& region_pair, const mapping_params& parameters) {
@@ -143,7 +144,7 @@ std::pair<std::string, std::string> sam_format_pair(const std::string& qname,
                      qual2 + "\t" +
                      "NM:i:" + std::to_string(query2.size() - std::get<0>(cigar2)) + "\t" +
                      "AS:i:" + std::to_string(std::get<1>(cigar2)) + "\n";
-  return std::make_pair(sam1, sam2);
+  return std::make_pair(mapq, std::make_pair(sam1, sam2));
 }
 
 // Generates SAM format output for unmapped read

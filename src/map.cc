@@ -4,6 +4,7 @@
 #include <utility>
 #include <unordered_map>
 #include <unordered_set>
+#include <algorithm>
 
 #include "map.hpp"
 #include "radixsort.hpp"
@@ -42,9 +43,9 @@ void process_single(std::string& sam, const std::unordered_map<uint64_t, index_p
     expand_region(reg, read->sequence.size(), parameters.k, reference->sequence.size() - 1);
     if (processed.find(std::get<1>(reg.first)) != processed.end()) continue;
     processed.insert(std::get<1>(reg.first));
-    mappings.emplace_back(0, sam_format_single(read->name, read->sequence, read->quality,
-                          reference->name, reference->sequence, reg, 
-                          parameters));
+    mappings.emplace_back(sam_format_single(read->name, read->sequence, read->quality,
+                                            reference->name, reference->sequence, reg, 
+                                            parameters));
   }
   for (auto& bin : candidates.second) {
     region_t reg = find_region(bin.second);
@@ -53,10 +54,15 @@ void process_single(std::string& sam, const std::unordered_map<uint64_t, index_p
     processed.insert(std::get<1>(reg.first));
     std::string rc = reverse_complement(read->sequence, 0, read->sequence.size());
     std::string rq = std::string(read->quality.rbegin(), read->quality.rend());
-    mappings.emplace_back(0, sam_format_single(read->name, rc, rq,
-                                               reference->name, reference->sequence, reg, 
-                                               parameters));
+    mappings.emplace_back(sam_format_single(read->name, rc, rq,
+                                            reference->name, reference->sequence, reg, 
+                                            parameters));
   }
+  std::stable_sort(mappings.begin(), mappings.end(), 
+                   [] (const std::pair<uint32_t, std::string>& a, const std::pair<uint32_t, std::string>& b) {
+                     return a.first > b.first;
+                   }
+  );
   for (const auto& m : mappings) {
     sam += m.second;
   }
@@ -98,14 +104,14 @@ void process_pairs(std::vector<std::pair<uint32_t, std::string>>& mappings, pair
     std::string* quality2 = std::get<2>(region_pair.second.first)
                             ? &(rq = std::string(second->quality.rbegin(), second->quality.rend()))
                             : &(second->quality);
-    std::pair<std::string, std::string> sam_pair = sam_format_pair(
+    std::pair<uint32_t, std::pair<std::string, std::string>> sam_pair = sam_format_pair(
         first->name,
         *query1, *quality1, 
         *query2, *quality2, 
         reference->name, reference->sequence, region_pair, parameters);
 
-    mappings.emplace_back(0, sam_pair.first);
-    mappings.emplace_back(0, sam_pair.second);
+    mappings.emplace_back(sam_pair.first, sam_pair.second.first);
+    mappings.emplace_back(sam_pair.first, sam_pair.second.second);
   }
 }
 
@@ -203,6 +209,11 @@ std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
                             paired_reads.second[i]->quality, 1, 0, 1);
       continue;
     }
+    std::stable_sort(mappings.begin(), mappings.end(), 
+                     [] (const std::pair<uint32_t, std::string>& a, const std::pair<uint32_t, std::string>& b) {
+                       return a.first > b.first;
+                     }
+    );
     for (const auto& m : mappings) {
       sam += m.second;
     }
