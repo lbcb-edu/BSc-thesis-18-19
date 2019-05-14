@@ -12,9 +12,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 add_subdirectory(vendor/bioparser EXCLUDE_FROM_ALL)
 
-add_executable(containers src/containers.cpp)
 add_executable(detection src/detection.cpp)
 
-target_link_libraries(containers bioparser)
 target_link_libraries(detection bioparser)
 

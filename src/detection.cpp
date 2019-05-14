@@ -217,7 +217,7 @@ int main(int argc, char* argv[]) {
         std::vector<std::tuple<uint32_t, uint32_t>>::iterator vec_it;
         vec_it = std::unique((it->second).begin(), (it->second).end());
         (it->second).resize(std::distance((it->second).begin(), vec_it));
-        std::cout << "To je referenca " << it->first << std::endl;
+        std::cout << "Repetativne regije na referenci " << it->first << std::endl;
         for (int i = 0; i < (it->second).size(); i++) {
             std::cout << std::get<0>((it->second)[i]) << "\t" << std::get<1>((it->second)[i]) << std::endl;
         }
@@ -239,18 +239,17 @@ int main(int argc, char* argv[]) {
         }
     }*/
 
-    std::cout << "_________________________________________________________" << std::endl;
+    /*std::cout << "_________________________________________________________" << std::endl;
 
     for (itr = repeating_reads.begin(); itr != repeating_reads.end(); itr++) {
         std::cout << "Sekvenca " << itr->first << " ima ova mapiranja:" << std::endl;
         for (int i = 0; i < (itr->second).size(); i++) {
             std::cout << (itr->second)[i].seq_start << "\t" << (itr->second)[i].seq_end << "\t" << (itr->second)[i].gen_start << "\t" << (itr->second)[i].gen_end << "\t" << (itr->second)[i].ref_name << std::endl;
         }
-    }
+    }*/
 
-    std::cout << "Ukupno potencijalnih " << sequence_mapping_details.size() << std::endl;
-    std::cout << "Kimernih " << chimeric_reads.size() << std::endl;
-    std::cout << "Repetativnih " << repeating_reads.size() << std::endl;
+    std::cout << "Kimernih sekvenci ima " << chimeric_reads.size() << std::endl;
+    std::cout << "Repetativnih sekvenci ima " << repeating_reads.size() << std::endl;
 
     std::vector<std::unique_ptr<InputFile>> first_object;
     if (fasta_file.find("fastq")>fasta_file.length() && fasta_file.find("fq")>fasta_file.length()){
