@@ -13,7 +13,8 @@
 struct option options[] = {
 	{"version", no_argument, 0, 'v'},
 	{"help", no_argument, 0, 'h'},
-	{"extended", no_argument, 0, 'e'}
+	{"extended", no_argument, 0, 'e'},
+	{"index_mode", no_argument, 0, 'i'}
 };
 
 class FASTAQEntity {
@@ -65,6 +66,7 @@ void help() {
         	"	-h, --help  -  prints help menu (currently displaying)\n"
         	"	-v, --version  -  prints program version\n"
 		"	-e, --extended - constructed CIGARS will include \'=\'(match) and \'X\'(mismatch) characters instead of \'M\'\n"
+		"	-i, --indexed_mode - aligns query sequence at some index with the reference sequence at the same index\n"
 		"==================\n"
 		"\n"
 	);
@@ -108,12 +110,30 @@ std::vector<std::unique_ptr<FASTAQEntity>> readFASTAFile(std::string const &file
 	return fasta_objects;
 }
 
+void generateOutput(std::unique_ptr<FASTAQEntity> const &ref, std::unique_ptr<FASTAQEntity> const &query, bool extended_cigar) {
+	std::vector<std::string> cigars;
+	OSALG::long_gaps_alignment(ref->sequence, query->sequence, cigars, extended_cigar);
+
+	printf("----------------------\n");
+	printf("reference: %s\n", (ref->name).c_str());
+	printf("query: %s\n", (query->name).c_str());
+	printf("cigars: \n");
+	for(auto const &cig : cigars) {
+		printf("+++++++++\n");
+		printf("%s\n", cig.c_str());
+		printf("+++++++++\n");
+	}
+	printf("----------------------\n");
+
+}
+
 int main(int argc, char **argv) {
 	
 	char optchr;
 	int option_index = 0;
 	bool extended_cigar = false;
-	while((optchr = getopt_long(argc, argv, "hve", options, &option_index)) != -1) {
+	bool indexed_mode = false;
+	while((optchr = getopt_long(argc, argv, "hvei", options, &option_index)) != -1) {
 		switch(optchr) {
 		
 			case 0:
@@ -126,6 +146,9 @@ int main(int argc, char **argv) {
 				break;
 			case 'e':
 				extended_cigar = true;
+				break;
+			case 'i':
+				indexed_mode = true;
 				break;
 			default:
 				fprintf(stderr, "Entered option is not valid.\n");
@@ -162,21 +185,18 @@ int main(int argc, char **argv) {
 
 	std::vector<std::unique_ptr<FASTAQEntity>> ref_entries = readFASTAFile(secondFilePath);
 
-	for(auto const &ref : ref_entries) {
-		for(auto const &query : query_entries) {
-			std::vector<std::string> cigars;
-			OSALG::long_gaps_alignment(ref->sequence, query->sequence, cigars, extended_cigar);
-
-			printf("----------------------\n");
-			printf("reference: %s\n", (ref->name).c_str());
-			printf("query: %s\n", (query->name).c_str());
-			printf("cigars: \n");
-			for(auto const &cig : cigars) {
-				printf("--$$$$$--\n");
-				printf("%s\n", cig.c_str());
-				printf("--$$$$$--\n");
+	if(!indexed_mode) {
+		for(auto const &ref : ref_entries) {
+			for(auto const &query : query_entries) {
+				generateOutput(ref, query, extended_cigar);
 			}
-			printf("----------------------\n");
+		}
+	} else {
+		int max_ind = std::min(ref_entries.size(), query_entries.size());
+
+		for(int i = 0; i < max_ind; ++i) {
+			printf("INDEX: %d\n", (i+1));
+			generateOutput(ref_entries[i], query_entries[i], extended_cigar);
 		}
 	}
 
