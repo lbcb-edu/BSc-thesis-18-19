@@ -111,18 +111,16 @@ std::vector<std::unique_ptr<FASTAQEntity>> readFASTAFile(std::string const &file
 }
 
 void generateOutput(std::unique_ptr<FASTAQEntity> const &ref, std::unique_ptr<FASTAQEntity> const &query, bool extended_cigar) {
-	std::vector<std::string> cigars;
-	OSALG::long_gaps_alignment(ref->sequence, query->sequence, cigars, extended_cigar);
+	std::string cigar;
+	OSALG::long_gaps_alignment(ref->sequence, query->sequence, cigar, extended_cigar);
 
 	printf("----------------------\n");
 	printf("reference: %s\n", (ref->name).c_str());
 	printf("query: %s\n", (query->name).c_str());
-	printf("cigars: \n");
-	for(auto const &cig : cigars) {
-		printf("+++++++++\n");
-		printf("%s\n", cig.c_str());
-		printf("+++++++++\n");
-	}
+	printf("CIGAR: \n");
+	printf("+++++++++\n");
+	printf("%s\n", cigar.c_str());
+	printf("+++++++++\n");
 	printf("----------------------\n");
 
 }
