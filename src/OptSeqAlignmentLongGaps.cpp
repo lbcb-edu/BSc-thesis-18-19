@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <chrono>
 
 #include "bioparser/bioparser.hpp"
 
@@ -181,6 +182,8 @@ int main(int argc, char **argv) {
 		query_entries = readFASTQFile(firstFilePath);
 	}
 
+	auto start_time = std::chrono::high_resolution_clock::now();
+
 	std::vector<std::unique_ptr<FASTAQEntity>> ref_entries = readFASTAFile(secondFilePath);
 
 	if(!indexed_mode) {
@@ -197,6 +200,10 @@ int main(int argc, char **argv) {
 			generateOutput(ref_entries[i], query_entries[i], extended_cigar);
 		}
 	}
+
+	auto diff_time = std::chrono::high_resolution_clock::now() - start_time;
+	auto runtime = std::chrono::duration_cast<std::chrono::milliseconds>(diff_time);
+	printf("Runtime: %8ld ms\n", runtime.count());
 
 	return 0;
 }
