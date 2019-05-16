@@ -185,60 +185,61 @@ namespace OSALG {
 		std::vector<SAVE1_type> primary_list;
 		primary_list.emplace_back(0, 0, -1);
 
-		std::vector<alignment_info> previous_row(seq2.length() + 1);
-		std::vector<alignment_info> current_row(seq2.length() + 1);
+		short current_row_index = 1;
+		short previous_row_index = 0;
+		std::vector<std::vector<alignment_info>> row{std::vector<alignment_info>(seq2.length() + 1), std::vector<alignment_info>(seq2.length() + 1)};
 
-		init_first_row(previous_row);
+		init_first_row(row[previous_row_index]);
 
 		for (unsigned int m = 1; m <= seq1.length(); ++m) {
-			init_first_column_element(current_row, previous_row);
+			init_first_column_element(row[current_row_index], row[previous_row_index]);
 
 			for (unsigned int n = 1; n <= seq2.length(); ++n) {
 				//Deletions
 				for (int i = 1; i <= L; ++i) {
-					current_row[n].f_arr[i] = std::min(previous_row[n].d_arr_val + v[i - 1], previous_row[n].f_arr[i]) + u[i - 1];
+					row[current_row_index][n].f_arr[i] = std::min(row[previous_row_index][n].d_arr_val + v[i - 1], row[previous_row_index][n].f_arr[i]) + u[i - 1];
 
-					if (previous_row[n].d_arr_val + v[i - 1] <= previous_row[n].f_arr[i]) {
-						current_row[n].p_arr[i] = previous_row[n].p_arr[0];
+					if (row[previous_row_index][n].d_arr_val + v[i - 1] <= row[previous_row_index][n].f_arr[i]) {
+						row[current_row_index][n].p_arr[i] = row[previous_row_index][n].p_arr[0];
 					}
 					else {
-						current_row[n].p_arr[i] = previous_row[n].p_arr[i];
+						row[current_row_index][n].p_arr[i] = row[previous_row_index][n].p_arr[i];
 					}
 				}
 
 				//Insertions
-				current_row[n].f_arr[L + 1] = std::min(current_row[n - 1].d_arr_val + v[0], current_row[n - 1].f_arr[L + 1]) + u[0];
+				row[current_row_index][n].f_arr[L + 1] = std::min(row[current_row_index][n - 1].d_arr_val + v[0], row[current_row_index][n - 1].f_arr[L + 1]) + u[0];
 
-				if (current_row[n - 1].d_arr_val + v[0] <= current_row[n - 1].f_arr[L + 1]) {
-					current_row[n].p_arr[L + 1] = current_row[n - 1].p_arr[0];
+				if (row[current_row_index][n - 1].d_arr_val + v[0] <= row[current_row_index][n - 1].f_arr[L + 1]) {
+					row[current_row_index][n].p_arr[L + 1] = row[current_row_index][n - 1].p_arr[0];
 				} 
 				else {
-					current_row[n].p_arr[L + 1] = current_row[n - 1].p_arr[L + 1];
+					row[current_row_index][n].p_arr[L + 1] = row[current_row_index][n - 1].p_arr[L + 1];
 				}
 
 				//Matches/mismatches
-				current_row[n].f_arr[0] = previous_row[n - 1].d_arr_val + diff(seq1[m - 1], seq2[n - 1]);
+				row[current_row_index][n].f_arr[0] = row[previous_row_index][n - 1].d_arr_val + diff(seq1[m - 1], seq2[n - 1]);
 
-				current_row[n].d_arr_val = *std::min_element(current_row[n].f_arr, current_row[n].f_arr + L + 2);
+				row[current_row_index][n].d_arr_val = *std::min_element(row[current_row_index][n].f_arr, row[current_row_index][n].f_arr + L + 2);
 
 				for (int i = 0; i <= L + 1; ++i) {
-					current_row[n].e_arr[i] = (current_row[n].d_arr_val == current_row[n].f_arr[i]);
+					row[current_row_index][n].e_arr[i] = (row[current_row_index][n].d_arr_val == row[current_row_index][n].f_arr[i]);
 				}
 
-				if (current_row[n].e_arr[0] && check_for_truth(previous_row, n - 1) && !previous_row[n - 1].e_arr[0]) {
-					adr_function(current_row[n].p_arr[0], m - 1, n - 1, previous_row, primary_list);
+				if (row[current_row_index][n].e_arr[0] && check_for_truth(row[previous_row_index], n - 1) && !row[previous_row_index][n - 1].e_arr[0]) {
+					adr_function(row[current_row_index][n].p_arr[0], m - 1, n - 1, row[previous_row_index], primary_list);
 				}
 				else {
-					current_row[n].p_arr[0] = previous_row[n - 1].p_arr[0];
+					row[current_row_index][n].p_arr[0] = row[previous_row_index][n - 1].p_arr[0];
 				}
 
 			}
-
-			previous_row = current_row;
+			std::swap(current_row_index, previous_row_index);
+			//previous_row = current_row;
 		}
 
 		int p_last;
-		adr_function(p_last, seq1.length(), seq2.length(), current_row, primary_list);
+		adr_function(p_last, seq1.length(), seq2.length(), row[current_row_index], primary_list);
 
 		construct_CIGAR(primary_list, cigar, seq1, seq2, extended_cigar);
 
