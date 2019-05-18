@@ -4,6 +4,7 @@
 
 // Mapping parameters wrapper
 struct mapping_params {
+  bool all;
   int32_t mch;
   int32_t mis;
   int32_t gapo;

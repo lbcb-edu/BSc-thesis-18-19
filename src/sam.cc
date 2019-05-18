@@ -66,7 +66,7 @@ std::tuple<uint32_t, int32_t, std::string> ksw2(const std::string& target, const
 //       ref        - reference sequence
 //       region     - mapping region
 //       parameters - mapping parameters
-// Return: mapping in SAM format
+// Return: mapq and mapping in SAM format
 std::pair<uint32_t, std::string> sam_format_single(const std::string& qname, const std::string& query, 
                                                    const std::string& qual, const std::string& rname, 
                                                    const std::string& ref, const region_t& region, 
@@ -101,7 +101,7 @@ std::pair<uint32_t, std::string> sam_format_single(const std::string& qname, con
 //       ref         - reference sequence
 //       region_pair - paired mapping region
 //       parameters  - mapping parameters
-// Return: paired mapping in SAM format
+// Return: mapq and paired mapping in SAM format
 std::pair<uint32_t, std::pair<std::string, std::string>> sam_format_pair(const std::string& qname,
     const std::string& query1, const std::string& qual1, const std::string& query2, const std::string& qual2,
     const std::string& rname, const std::string& ref,
@@ -112,12 +112,13 @@ std::pair<uint32_t, std::pair<std::string, std::string>> sam_format_pair(const s
                         : std::get<1>(region_pair.second.first) - std::get<1>(region_pair.first.second);
   std::tuple<uint32_t, int32_t, std::string> cigar1 = ksw2(ref, query1, region_pair.first, parameters);
   std::tuple<uint32_t, int32_t, std::string> cigar2 = ksw2(ref, query2, region_pair.second, parameters);
-  int prop_aligned = std::get<0>(cigar1) + std::get<0>(cigar2) > 0.5 * insert_size ? 0x2 : 0x0;
+  int prop_aligned = std::get<0>(cigar1) > 0.5 * query1.size() && std::get<0>(cigar2) > 0.5 * query2.size() ? 0x2 : 0x0;
   int flag1 = 0x1 | prop_aligned | (std::get<2>(region_pair.first.first) ? 0x10 : 0x0) 
                   | (std::get<2>(region_pair.second.first) ? 0x20 : 0x0) | 0x40;
   int flag2 = 0x1 | prop_aligned | (std::get<2>(region_pair.second.first) ? 0x10 : 0x0) 
                   | (std::get<2>(region_pair.first.first) ? 0x20 : 0x0) | 0x80;
-  uint32_t mapq = std::min((int)((double)(std::get<0>(cigar1) + std::get<0>(cigar2)) / (query1.size() + query2.size()) * 60), 60);
+  double dev = ((double)abs(insert_size) - parameters.insert_size) / (0.1 * parameters.insert_size);              
+  uint32_t mapq = (uint32_t)((double)(std::get<0>(cigar1) + std::get<0>(cigar2)) / (query1.size() + query2.size()) * 60 - dev*dev);
   std::string sam1 = sam_name + "\t" +
                      std::to_string(flag1) + "\t" +
                      rname + "\t" +

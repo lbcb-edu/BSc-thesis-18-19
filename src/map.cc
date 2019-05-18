@@ -63,8 +63,21 @@ void process_single(std::string& sam, const std::unordered_map<uint64_t, index_p
                      return a.first > b.first;
                    }
   );
-  for (const auto& m : mappings) {
-    sam += m.second;
+  uint32_t stop = parameters.all ? mappings.size() : 1;
+  for (uint32_t i = 0; i < stop; ++i) {
+    if (i) {
+      std::size_t pos = 0;
+      for (uint32_t j = 0; j < 9; ++j) {
+        pos = mappings[i].second.find('\t', pos);
+        pos++;
+      }
+      std::size_t end = mappings[i].second.find('\t', pos);
+      mappings[i].second.replace(pos, end - pos, "*");
+      pos += 2;
+      end = mappings[i].second.find('\t', pos);
+      mappings[i].second.replace(pos, end - pos, "*");
+    }
+    sam += mappings[i].second;
   }
 }
 
@@ -214,9 +227,36 @@ std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
                        return a.first > b.first;
                      }
     );
-    for (const auto& m : mappings) {
-      sam += m.second;
+    std::string sam1;
+    std::string sam2;
+    uint32_t stop = parameters.all ? mappings.size() - 1 : 1;
+    for (uint32_t j = 0; j < stop; j+=2) {
+      if (j) {
+        std::size_t pos = 0;
+        for (uint32_t k = 0; k < 9; ++k) {
+          pos = mappings[j].second.find('\t', pos);
+          pos++;
+        }
+        std::size_t end = mappings[j].second.find('\t', pos);
+        mappings[j].second.replace(pos, end - pos, "*");
+        pos += 2;
+        end = mappings[j].second.find('\t', pos);
+        mappings[j].second.replace(pos, end - pos, "*");
+        pos = 0;
+        for (uint32_t k = 0; k < 9; ++k) {
+          pos = mappings[j + 1].second.find('\t', pos);
+          pos++;
+        }
+        end = mappings[j + 1].second.find('\t', pos);
+        mappings[j + 1].second.replace(pos, end - pos, "*");
+        pos += 2;
+        end = mappings[j + 1].second.find('\t', pos);
+        mappings[j + 1].second.replace(pos, end - pos, "*");
+      }
+      sam1 += mappings[j].second;
+      sam2 += mappings[j + 1].second;
     }
+    sam += sam1 + sam2;
   }
   return sam;
 }

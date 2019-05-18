@@ -38,6 +38,7 @@ static struct option long_options[] = {
   {"help", no_argument, NULL, 'h'},
   {"version", no_argument, NULL, 'v'},
   {"paired", no_argument, NULL, 'p'},
+  {"all", no_argument, NULL, 'a'},
   {"match", required_argument, NULL, 'm'},
   {"mismatch", required_argument, NULL, 'M'},
   {"gap-open", required_argument, NULL, 'o'},
@@ -74,6 +75,7 @@ void help(void) {
          "  -h  or  --help           print help (displayed now) and exit\n"
          "  -v  or  --version        print version info and exit\n"
          "  -p  or  --paired         use pairing information (needs insert size information)\n"
+         "  -a  or  --all            output all found mappings\n"
          "  -m  or  --match          <int>\n"
          "                             default: 1\n"
          "                             match value\n"
@@ -142,6 +144,7 @@ bool check_extension(const std::string& filename, const std::unordered_set<std::
 int main(int argc, char **argv) {
   int optchr;
   mapping_params parameters;
+  parameters.all = false;
   parameters.mch = 1;
   parameters.mis = -2;
   parameters.gapo = 2;
@@ -157,7 +160,7 @@ int main(int argc, char **argv) {
   uint32_t t = 3;
   std::string cl_flags;
 
-  while ((optchr = getopt_long(argc, argv, "hvpm:M:o:e:b:k:w:f:i:r:t:T:", long_options, NULL)) != -1) {
+  while ((optchr = getopt_long(argc, argv, "hvpam:M:o:e:b:k:w:f:i:r:t:T:", long_options, NULL)) != -1) {
     cl_flags += "-", cl_flags += optchr, cl_flags += " ";
     if (optarg != nullptr) cl_flags += optarg, cl_flags += " ";
     switch (optchr) {
@@ -171,6 +174,10 @@ int main(int argc, char **argv) {
       }
       case 'p': {
         paired = true;
+        break;
+      }
+      case 'a': {
+        parameters.all = true;
         break;
       }
       case 'm': {

@@ -177,12 +177,12 @@ void expand_region(region_t& reg, uint32_t read_size, uint32_t k, uint32_t max_s
     std::get<1>(reg.first) -= std::get<1>(reg.first) < std::get<0>(reg.first) 
                               ? std::get<1>(reg.first) : std::get<0>(reg.first);
     std::get<1>(reg.second) += max_size < std::get<1>(reg.second) + read_size - std::get<0>(reg.second) 
-                               ? max_size - std::get<1>(reg.second) : read_size - std::get<0>(reg.second);
+                               ? max_size - std::get<1>(reg.second) - 1 : read_size - std::get<0>(reg.second);
   } else {
     std::get<1>(reg.first) -= std::get<1>(reg.first) < read_size - std::get<0>(reg.second) - k 
                               ? std::get<1>(reg.first) : read_size - std::get<0>(reg.second) - k;
     std::get<1>(reg.second) += max_size < std::get<1>(reg.second) + std::get<0>(reg.first) + k 
-                               ? max_size : std::get<0>(reg.first) + k;
+                               ? max_size - std::get<1>(reg.second) - 1 : std::get<0>(reg.first) + k;
   }
   std::get<0>(reg.first) = 0;
   std::get<0>(reg.second) = read_size - 1;
