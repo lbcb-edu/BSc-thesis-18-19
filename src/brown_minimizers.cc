@@ -42,7 +42,7 @@ struct triplet_ordering {
 inline uint64_t value(const char* sequence, uint32_t pos, uint32_t k) {
   uint64_t val = 0;
   for (uint32_t i = 0; i < k; ++i) {
-    val = (val << 2) | char_to_val[sequence[pos + i]];
+    val = (val << 2) | (char_to_val[sequence[pos + i]] & 3);
   }
   return val;
 }
@@ -91,7 +91,7 @@ void interior_minimizers_fill(
 
     for (uint32_t j = start; j < window_length; ++j) {
       uint32_t pos = k - 1 + i + j;
-      original = ((original << 2) | char_to_val[sequence[pos]]) & mask;
+      original = ((original << 2) | (char_to_val[sequence[pos]] & 3)) & mask;
       rev_com = ((rev_com >> 2) | ((~char_to_val[sequence[pos]] & 3) << (2 * (k - 1)))) & mask;
       if (original != rev_com) {
         m = std::min(m, std::min(original, rev_com));
@@ -111,7 +111,7 @@ void interior_minimizers_fill(
 
     for (uint32_t j = start; j < window_length; ++j) {
       uint32_t pos = k - 1 + i + j;
-      original = ((original << 2) | char_to_val[sequence[pos]]) & mask;
+      original = ((original << 2) | (char_to_val[sequence[pos]] & 3)) & mask;
       rev_com = ((rev_com >> 2) | ((~char_to_val[sequence[pos]] & 3) << (2 * (k - 1)))) & mask;
       if (original < rev_com && original == m) {
         minimizers_set.emplace(m, i + j, 0);
@@ -193,7 +193,7 @@ std::vector<triplet_t> minimizers(
                         return (value_reverse_complement(sequence, pos, k) << 2) & mask;
                       },
                       [&k, &sequence] (uint64_t original, uint32_t pos, uint64_t mask) {
-                        return ((original << 2) | char_to_val[sequence[k - 1 + pos]]) & mask;
+                        return ((original << 2) | (char_to_val[sequence[k - 1 + pos]] & 3)) & mask;
                       },
                       [&k, &sequence] (uint64_t rev_com, uint32_t pos, uint64_t mask) {
                         return ((rev_com >> 2) | ((~char_to_val[sequence[k - 1 + pos]] & 3) << (2 * (k - 1)))) & mask;
@@ -209,7 +209,7 @@ std::vector<triplet_t> minimizers(
                         return (value_reverse_complement(sequence, pos, k) >> 2) & mask;
                       },
                       [&k, &sequence] (uint64_t original, uint32_t pos, uint64_t mask) {
-                        return ((original >> 2) | (char_to_val[sequence[pos]] << (2 * (k - 1)))) & mask;
+                        return ((original >> 2) | ((char_to_val[sequence[pos]] & 3) << (2 * (k - 1)))) & mask;
                       },
                       [&sequence] (uint64_t rev_com, uint32_t pos, uint64_t mask) {
                         return ((rev_com << 2) | (~char_to_val[sequence[pos]] & 3)) & mask;

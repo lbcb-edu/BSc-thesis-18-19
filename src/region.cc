@@ -87,21 +87,21 @@ bin_t extract_candidates(const std::vector<minimizer_hit_t>& hits, const uint32_
 //       region_size - size of region on reference from which hits were counted
 // Return: pair of corresponding lists containing lists of hits that were checked for insert size
 paired_checked_t check_pairing(std::pair<bin_t, bin_t>& candidates, const uint32_t insert_size,
-                               const uint32_t read_size, const uint32_t region_size) {
+                               const uint32_t read_size) {
   paired_checked_t checked;
   for (const auto& bin : candidates.first) {
     bin_t::const_iterator found;
     if (!std::get<2>(bin.second[0])) {
-      if ((found = candidates.second.find(bin.first + ((insert_size - read_size) / region_size))) != candidates.second.end()
-          || (found = candidates.second.find(bin.first + ((insert_size - read_size) / region_size) - 1)) != candidates.second.end()
-          || (found = candidates.second.find(bin.first + ((insert_size - read_size) / region_size) + 1)) != candidates.second.end()) {
+      if ((found = candidates.second.find(bin.first + ((insert_size - read_size) / read_size))) != candidates.second.end()
+          || (found = candidates.second.find(bin.first + ((insert_size - read_size) / read_size) - 1)) != candidates.second.end()
+          || (found = candidates.second.find(bin.first + ((insert_size - read_size) / read_size) + 1)) != candidates.second.end()) {
         checked.first.emplace_back(bin.second.begin(), bin.second.end());
         checked.second.emplace_back(found->second.begin(), found->second.end());
       }
     } else {
-      if ((found = candidates.second.find(bin.first - ((insert_size - read_size) / region_size))) != candidates.second.end()
-          || (found = candidates.second.find(bin.first - ((insert_size - read_size) / region_size) - 1)) != candidates.second.end()
-          || (found = candidates.second.find(bin.first - ((insert_size - read_size) / region_size) + 1)) != candidates.second.end()) {
+      if ((found = candidates.second.find(bin.first - ((insert_size - read_size) / read_size))) != candidates.second.end()
+          || (found = candidates.second.find(bin.first - ((insert_size - read_size) / read_size) - 1)) != candidates.second.end()
+          || (found = candidates.second.find(bin.first - ((insert_size - read_size) / read_size) + 1)) != candidates.second.end()) {
         checked.first.emplace_back(bin.second.begin(), bin.second.end());
         checked.second.emplace_back(found->second.begin(), found->second.end());
       }

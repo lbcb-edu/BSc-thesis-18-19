@@ -30,8 +30,8 @@ void process_single(std::string& sam, const std::unordered_map<uint64_t, index_p
   find_minimizer_hits(hits.first, hits.second, ref_index, t_minimizers, q_minimizers);
   radixsort(hits.first);
   radixsort(hits.second);
-  std::pair<bin_t, bin_t> candidates(extract_candidates(hits.first, parameters.threshold, parameters.region_size),
-                                     extract_candidates(hits.second, parameters.threshold, parameters.region_size));
+  std::pair<bin_t, bin_t> candidates(extract_candidates(hits.first, parameters.threshold, read->sequence.size()),
+                                     extract_candidates(hits.second, parameters.threshold, read->sequence.size()));
   if (candidates.first.size() == 0 && candidates.second.size() == 0) {
     sam += unmapped_sam(read->name, read->sequence, read->quality, 0, 0, 0);
     return;
@@ -202,14 +202,14 @@ std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
     radixsort(hits2.second);
 
     std::pair<bin_t, bin_t> candidates1(
-        extract_candidates(hits1.first, parameters.threshold, parameters.region_size),
-        extract_candidates(hits2.second, parameters.threshold, parameters.region_size));
+        extract_candidates(hits1.first, parameters.threshold, paired_reads.first[i]->sequence.size()),
+        extract_candidates(hits2.second, parameters.threshold, paired_reads.second[i]->sequence.size()));
     std::pair<bin_t, bin_t> candidates2(
-        extract_candidates(hits1.second, parameters.threshold, parameters.region_size),
-        extract_candidates(hits2.first, parameters.threshold, parameters.region_size));
-    paired_checked_t checked1 = check_pairing(candidates1, parameters.insert_size, parameters.region_size,
+        extract_candidates(hits1.second, parameters.threshold, paired_reads.first[i]->sequence.size()),
+        extract_candidates(hits2.first, parameters.threshold, paired_reads.second[i]->sequence.size()));
+    paired_checked_t checked1 = check_pairing(candidates1, parameters.insert_size,
                                               paired_reads.second[i]->sequence.size());
-    paired_checked_t checked2 = check_pairing(candidates2, parameters.insert_size, parameters.region_size,
+    paired_checked_t checked2 = check_pairing(candidates2, parameters.insert_size,
                                               paired_reads.first[i]->sequence.size());
 
     std::vector<std::pair<uint32_t, std::string>> mappings;
@@ -232,6 +232,14 @@ std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
     uint32_t stop = parameters.all ? mappings.size() - 1 : 1;
     for (uint32_t j = 0; j < stop; j+=2) {
       if (j) {
+        std::size_t f_start = mappings[j].second.find('\t', 0) + 1;
+        std::size_t f_end = mappings[j].second.find('\t', f_start);
+        mappings[j].second.replace(f_start, f_end - f_start, 
+            std::to_string(std::stoi(mappings[j].second.substr(f_start, f_end)) | 0x100));
+        f_start = mappings[j + 1].second.find('\t', 0) + 1;
+        f_end = mappings[j + 1].second.find('\t', f_start);
+        mappings[j + 1].second.replace(f_start, f_end - f_start, 
+            std::to_string(std::stoi(mappings[j + 1].second.substr(f_start, f_end)) | 0x100));
         std::size_t pos = 0;
         for (uint32_t k = 0; k < 9; ++k) {
           pos = mappings[j].second.find('\t', pos);

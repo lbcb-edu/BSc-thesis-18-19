@@ -14,6 +14,5 @@ struct mapping_params {
   uint32_t w;
   float f;
   uint32_t insert_size;
-  uint32_t region_size;
   uint32_t threshold;
 };

@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <cstdint>
 #include <cstring>
+#include <cmath>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -12,7 +13,7 @@
 #include "mapping_params.hpp"
 #include "ksw2.h"
 
-std::unordered_map<uint8_t, uint64_t> c = {{'C', 0}, {'A', 1}, {'T', 2}, {'U', 2}, {'G', 3}};
+std::unordered_map<uint8_t, uint8_t> c = {{'C', 0}, {'A', 1}, {'T', 2}, {'U', 2}, {'G', 3}};
 
 // Perform KSW2 algorithm on found region, return cigar
 // Args: target     - target sequence
@@ -32,8 +33,8 @@ std::tuple<uint32_t, int32_t, std::string> ksw2(const std::string& target, const
   ts = (uint8_t*)malloc(len);
   qs = (uint8_t*)malloc(len);
   for (int i = 0; i < len; ++i) {
-    ts[i] = c[(uint8_t)target.c_str()[i + std::get<1>(region.first)]]; // encode to 0/1/2/3
-    qs[i] = c[(uint8_t)query.c_str()[i]];
+    ts[i] = (c[(uint8_t)target.c_str()[i + std::get<1>(region.first)]] & 3); // encode to 0/1/2/3
+    qs[i] = (c[(uint8_t)query.c_str()[i]] & 3);
   }
   ksw_extz2_sse(0, len, qs, len, ts, 5, mat, parameters.gapo, parameters.gape, parameters.band, -1, 0, 0, &ez);
   std::string cigar;
@@ -74,7 +75,7 @@ std::pair<uint32_t, std::string> sam_format_single(const std::string& qname, con
   std::string sam_name = qname.substr(0, qname.find('/', 0));
   std::tuple<uint32_t, int32_t, std::string> cigar = ksw2(ref, query, region, parameters);
   int flag = std::get<2>(region.first) ? 0x10 : 0x0;
-  uint32_t mapq = std::min((int)((double)std::get<0>(cigar) / query.size() * 60), 60);
+  uint32_t mapq = (uint32_t)round((double)std::get<0>(cigar) / query.size() * 60);
   std::string sam = sam_name + "\t" +
                     std::to_string(flag) + "\t" +
                     rname + "\t" +
@@ -118,7 +119,7 @@ std::pair<uint32_t, std::pair<std::string, std::string>> sam_format_pair(const s
   int flag2 = 0x1 | prop_aligned | (std::get<2>(region_pair.second.first) ? 0x10 : 0x0) 
                   | (std::get<2>(region_pair.first.first) ? 0x20 : 0x0) | 0x80;
   double dev = ((double)abs(insert_size) - parameters.insert_size) / (0.1 * parameters.insert_size);              
-  uint32_t mapq = (uint32_t)((double)(std::get<0>(cigar1) + std::get<0>(cigar2)) / (query1.size() + query2.size()) * 60 - dev*dev);
+  uint32_t mapq = (uint32_t)round((double)(std::get<0>(cigar1) + std::get<0>(cigar2)) / (query1.size() + query2.size()) * 60 - dev*dev);
   std::string sam1 = sam_name + "\t" +
                      std::to_string(flag1) + "\t" +
                      rname + "\t" +

@@ -48,7 +48,6 @@ static struct option long_options[] = {
   {"window_length", required_argument, NULL, 'w'},
   {"frequency", required_argument, NULL, 'f'},
   {"insert_size", required_argument, NULL, 'i'},
-  {"region_size", required_argument, NULL, 'r'},
   {"threads", required_argument, NULL, 't'},
   {"threshold", required_argument, NULL, 'T'},
   {NULL, no_argument, NULL, 0}
@@ -106,9 +105,6 @@ void help(void) {
          "  -i  or  --insert_size    <uint>\n"
          "                             default: 215\n"
          "                             fragment insert size\n"
-         "  -r  or  --region_size    <uint>\n"
-         "                             default: 100\n"
-         "                             region size to count hits from\n"
          "  -t  or  --threads        <uint>\n"
          "                             default: 3\n"
          "                             number of threads\n"
@@ -154,13 +150,12 @@ int main(int argc, char **argv) {
   parameters.w = 3;
   parameters.f = 0.001f;
   parameters.insert_size = 215;
-  parameters.region_size = 100;
   parameters.threshold = 2;
   bool paired = false;
   uint32_t t = 3;
   std::string cl_flags;
 
-  while ((optchr = getopt_long(argc, argv, "hvpam:M:o:e:b:k:w:f:i:r:t:T:", long_options, NULL)) != -1) {
+  while ((optchr = getopt_long(argc, argv, "hvpam:M:o:e:b:k:w:f:i:t:T:", long_options, NULL)) != -1) {
     cl_flags += "-", cl_flags += optchr, cl_flags += " ";
     if (optarg != nullptr) cl_flags += optarg, cl_flags += " ";
     switch (optchr) {
@@ -218,10 +213,6 @@ int main(int argc, char **argv) {
       }
       case 'i': {
         parameters.insert_size = atoi(optarg);
-        break;
-      }
-      case 'r': {
-        parameters.region_size = atoi(optarg);
         break;
       }
       case 't': {
