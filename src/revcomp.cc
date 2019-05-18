@@ -4,7 +4,7 @@
 
 #include "revcomp.hpp"
 
-std::unordered_map<char, char> complement_map = {{'C', 'G'}, {'A', 'T'}, {'T', 'A'}, {'U', 'A'}, {'G', 'C'}};
+std::unordered_map<char, char> complement_map = {{'C', 'G'}, {'A', 'T'}, {'T', 'A'}, {'U', 'A'}, {'G', 'C'}, {'N', 'N'}};
 
 // Create reverse complement of sequence
 // Args: original - sequence whose subsequence will be reversed and complemented

@@ -13,6 +13,13 @@
 #include "brown_minimizers.hpp"
 #include "sam.hpp"
 
+int32_t clip(const std::string& seq, const uint32_t k, const uint32_t w) {
+  std::size_t found = seq.find("NNN", 10);
+  if (found == std::string::npos) return 0;
+  if (found < (w + k - 1)) return -1;
+  return seq.size() - found;
+}
+
 // Process (as) single-end sequencing read
 // Args: sam          - SAM format output string
 //       ref_index    - map of minimizer values to positions in target minimizers list
@@ -24,8 +31,13 @@
 void process_single(std::string& sam, const std::unordered_map<uint64_t, index_pos_t>& ref_index, 
                     const std::vector<minimizer_t>& t_minimizers, const std::unique_ptr<fastaq::FastAQ>& reference, 
                     const std::unique_ptr<fastaq::FastAQ>& read, const mapping_params& parameters) {
-  std::vector<minimizer_t> q_minimizers = brown::minimizers(read->sequence.c_str(), read->sequence.size(),
-                                                              parameters.k, parameters.w);
+  int32_t clipped = clip(read->sequence, parameters.k, parameters.w);
+  if (clipped < 0) {
+    sam += unmapped_sam(read->name, read->sequence, read->quality, 0, 0, 0);
+    return;
+  }
+  std::vector<minimizer_t> q_minimizers = brown::minimizers(read->sequence.c_str(), read->sequence.size() - clipped,
+                                                            parameters.k, parameters.w);
   split_hits_t hits;
   find_minimizer_hits(hits.first, hits.second, ref_index, t_minimizers, q_minimizers);
   radixsort(hits.first);
@@ -45,7 +57,7 @@ void process_single(std::string& sam, const std::unordered_map<uint64_t, index_p
     processed.insert(std::get<1>(reg.first));
     mappings.emplace_back(sam_format_single(read->name, read->sequence, read->quality,
                                             reference->name, reference->sequence, reg, 
-                                            parameters));
+                                            parameters, clipped));
   }
   for (auto& bin : candidates.second) {
     region_t reg = find_region(bin.second);
@@ -56,7 +68,7 @@ void process_single(std::string& sam, const std::unordered_map<uint64_t, index_p
     std::string rq = std::string(read->quality.rbegin(), read->quality.rend());
     mappings.emplace_back(sam_format_single(read->name, rc, rq,
                                             reference->name, reference->sequence, reg, 
-                                            parameters));
+                                            parameters, clipped));
   }
   std::stable_sort(mappings.begin(), mappings.end(), 
                    [] (const std::pair<uint32_t, std::string>& a, const std::pair<uint32_t, std::string>& b) {
@@ -92,7 +104,7 @@ void process_single(std::string& sam, const std::unordered_map<uint64_t, index_p
 void process_pairs(std::vector<std::pair<uint32_t, std::string>>& mappings, paired_checked_t& checked,
                    const std::unique_ptr<fastaq::FastAQ>& reference, 
                    const std::unique_ptr<fastaq::FastAQ>& first, const std::unique_ptr<fastaq::FastAQ>& second,
-                   const mapping_params& parameters) {
+                   const mapping_params& parameters, const int32_t clipped1, const int32_t clipped2) {
   std::unordered_set<uint32_t> processed;
   for (uint32_t j = 0; j < checked.first.size(); ++j) {
     std::pair<region_t, region_t> region_pair(find_region(checked.first[j]),
@@ -121,7 +133,7 @@ void process_pairs(std::vector<std::pair<uint32_t, std::string>>& mappings, pair
         first->name,
         *query1, *quality1, 
         *query2, *quality2, 
-        reference->name, reference->sequence, region_pair, parameters);
+        reference->name, reference->sequence, region_pair, parameters, clipped1, clipped2);
 
     mappings.emplace_back(sam_pair.first, sam_pair.second.first);
     mappings.emplace_back(sam_pair.first, sam_pair.second.second);
@@ -185,11 +197,20 @@ std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
                        const mapping_params& parameters, uint32_t t_start, uint32_t t_end) {
   std::string sam;
   for (uint32_t i = t_start; i < t_end; ++i) {
+    int32_t clipped1 = clip(paired_reads.first[i]->sequence, parameters.k, parameters.w);
+    int32_t clipped2 = clip(paired_reads.second[i]->sequence, parameters.k, parameters.w);
+    if (clipped1 < 0 || clipped2 < 0) {
+      sam += unmapped_sam(paired_reads.first[i]->name, paired_reads.first[i]->sequence,
+                          paired_reads.first[i]->quality, 1, 1, 0)
+             + unmapped_sam(paired_reads.second[i]->name, paired_reads.second[i]->sequence, 
+                            paired_reads.second[i]->quality, 1, 0, 1);
+      continue;
+    }
     paired_minimizers_t p_minimizers(brown::minimizers(paired_reads.first[i]->sequence.c_str(),
-                                                       paired_reads.first[i]->sequence.size(),
+                                                       paired_reads.first[i]->sequence.size() - clipped1,
                                                        parameters.k, parameters.w),
                                      brown::minimizers(paired_reads.second[i]->sequence.c_str(),
-                                                       paired_reads.second[i]->sequence.size(),
+                                                       paired_reads.second[i]->sequence.size() - clipped2,
                                                        parameters.k, parameters.w));
     split_hits_t hits1;
     split_hits_t hits2;
@@ -213,8 +234,8 @@ std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
                                               paired_reads.first[i]->sequence.size());
 
     std::vector<std::pair<uint32_t, std::string>> mappings;
-    process_pairs(mappings, checked1, reference, paired_reads.first[i], paired_reads.second[i], parameters);
-    process_pairs(mappings, checked2, reference, paired_reads.first[i], paired_reads.second[i], parameters);
+    process_pairs(mappings, checked1, reference, paired_reads.first[i], paired_reads.second[i], parameters, clipped1, clipped2);
+    process_pairs(mappings, checked2, reference, paired_reads.first[i], paired_reads.second[i], parameters, clipped1, clipped2);
     if (mappings.size() == 0) {
       sam += unmapped_sam(paired_reads.first[i]->name, paired_reads.first[i]->sequence,
                           paired_reads.first[i]->quality, 1, 1, 0)
