@@ -13,6 +13,11 @@
 #include "brown_minimizers.hpp"
 #include "sam.hpp"
 
+// Clip end of sequence that contains multiple Ns
+// Args: seq - sequence to be clipped
+//       k   - k-mer length
+//       w   - window length
+// Return: size of clipping; if negative, sequence should be rejected
 int32_t clip(const std::string& seq, const uint32_t k, const uint32_t w) {
   std::size_t found = seq.find("NNN", 10);
   if (found == std::string::npos) return 0;
@@ -78,11 +83,12 @@ void process_single(std::string& sam, const std::unordered_map<uint64_t, index_p
   uint32_t stop = parameters.all ? mappings.size() : 1;
   for (uint32_t i = 0; i < stop; ++i) {
     if (i) {
+      std::size_t f_start = mappings[i].second.find('\t', 0) + 1;
+      std::size_t f_end = mappings[i].second.find('\t', f_start);
+      mappings[i].second.replace(f_start, f_end - f_start, 
+          std::to_string(std::stoi(mappings[i].second.substr(f_start, f_end - f_start)) | 0x100));
       std::size_t pos = 0;
-      for (uint32_t j = 0; j < 9; ++j) {
-        pos = mappings[i].second.find('\t', pos);
-        pos++;
-      }
+      for (uint32_t j = 0; j < 9; ++j) pos = mappings[i].second.find('\t', pos) + 1;
       std::size_t end = mappings[i].second.find('\t', pos);
       mappings[i].second.replace(pos, end - pos, "*");
       pos += 2;
@@ -256,26 +262,20 @@ std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
         std::size_t f_start = mappings[j].second.find('\t', 0) + 1;
         std::size_t f_end = mappings[j].second.find('\t', f_start);
         mappings[j].second.replace(f_start, f_end - f_start, 
-            std::to_string(std::stoi(mappings[j].second.substr(f_start, f_end)) | 0x100));
+            std::to_string(std::stoi(mappings[j].second.substr(f_start, f_end - f_start)) | 0x100));
         f_start = mappings[j + 1].second.find('\t', 0) + 1;
         f_end = mappings[j + 1].second.find('\t', f_start);
         mappings[j + 1].second.replace(f_start, f_end - f_start, 
-            std::to_string(std::stoi(mappings[j + 1].second.substr(f_start, f_end)) | 0x100));
+            std::to_string(std::stoi(mappings[j + 1].second.substr(f_start, f_end - f_start)) | 0x100));
         std::size_t pos = 0;
-        for (uint32_t k = 0; k < 9; ++k) {
-          pos = mappings[j].second.find('\t', pos);
-          pos++;
-        }
+        for (uint32_t k = 0; k < 9; ++k) pos = mappings[j].second.find('\t', pos) + 1;
         std::size_t end = mappings[j].second.find('\t', pos);
         mappings[j].second.replace(pos, end - pos, "*");
         pos += 2;
         end = mappings[j].second.find('\t', pos);
         mappings[j].second.replace(pos, end - pos, "*");
         pos = 0;
-        for (uint32_t k = 0; k < 9; ++k) {
-          pos = mappings[j + 1].second.find('\t', pos);
-          pos++;
-        }
+        for (uint32_t k = 0; k < 9; ++k) pos = mappings[j + 1].second.find('\t', pos) + 1;
         end = mappings[j + 1].second.find('\t', pos);
         mappings[j + 1].second.replace(pos, end - pos, "*");
         pos += 2;
