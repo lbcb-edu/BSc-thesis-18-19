@@ -139,7 +139,7 @@ bool check_extension(const std::string& filename, const std::unordered_set<std::
 
 int main(int argc, char **argv) {
   int optchr;
-  mapping_params parameters;
+  mapping_params_t parameters;
   parameters.all = false;
   parameters.mch = 1;
   parameters.mis = -2;

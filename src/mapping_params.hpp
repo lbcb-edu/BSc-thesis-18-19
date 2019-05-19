@@ -3,7 +3,7 @@
 #include <cstdint>
 
 // Mapping parameters wrapper
-struct mapping_params {
+struct mapping_params_t {
   bool all;
   int32_t mch;
   int32_t mis;

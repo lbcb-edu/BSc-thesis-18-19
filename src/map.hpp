@@ -25,15 +25,15 @@ typedef std::pair<std::vector<std::vector<minimizer_hit_t>>, std::vector<std::ve
 std::string map_single(const std::unordered_map<uint64_t, index_pos_t>& ref_index, 
                        const std::vector<minimizer_t>& t_minimizers,
                        const std::unique_ptr<fastaq::FastAQ>& reference, 
-                       const std::vector<std::unique_ptr<fastaq::FastAQ>>& reads, const mapping_params& parameters,
+                       const std::vector<std::unique_ptr<fastaq::FastAQ>>& reads, const mapping_params_t& parameters,
                        uint32_t t_start, uint32_t t_end);
 
 std::string map_as_single(const std::unordered_map<uint64_t, index_pos_t>& ref_index, 
                           const std::vector<minimizer_t>& t_minimizers,
                           const std::unique_ptr<fastaq::FastAQ>& reference, const paired_reads_t& paired_reads,
-                          const mapping_params& parameters, uint32_t t_start, uint32_t t_end);
+                          const mapping_params_t& parameters, uint32_t t_start, uint32_t t_end);
 
 std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_index, 
                        const std::vector<minimizer_t>& t_minimizers,
                        const std::unique_ptr<fastaq::FastAQ>& reference, const paired_reads_t& paired_reads,
-                       const mapping_params& parameters, uint32_t t_start, uint32_t t_end);
+                       const mapping_params_t& parameters, uint32_t t_start, uint32_t t_end);
