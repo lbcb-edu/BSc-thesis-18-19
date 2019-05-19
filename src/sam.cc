@@ -95,7 +95,6 @@ mapping_t single_mapping(const std::string& qname, const std::string& query,
                          const std::string& qual, const std::string& rname, 
                          const std::string& ref, const region_t& region, 
                          const mapping_params_t& parameters, const int32_t clipped) {
-  // std::string sam_name = qname.substr(0, qname.find('/', 0));
   uint32_t start = std::get<2>(region.first) ? clipped : 0;
   std::string preclip, postclip;
   if (clipped) {
@@ -109,8 +108,6 @@ mapping_t single_mapping(const std::string& qname, const std::string& query,
   std::tuple<uint32_t, int32_t, std::string> cigar = ksw2(ref.c_str() + std::get<1>(region.first), query.size() - clipped, 
                                                           query.c_str() + start, query.size() - clipped, 
                                                           parameters);
-  // int flag = std::get<2>(region.first) ? 0x10 : 0x0;
-  // uint32_t mapq = (uint32_t)round((double)std::get<0>(cigar) / query.size() * 60);
   mapping_t m;
   m.qname = qname.substr(0, qname.find('/', 0));
   m.flag = std::get<2>(region.first) ? 0x10 : 0x0;
@@ -125,19 +122,6 @@ mapping_t single_mapping(const std::string& qname, const std::string& query,
   m.qual = qual;
   m.nm = query.size() - std::get<0>(cigar) - clipped;
   m.as = std::get<1>(cigar);
-  // std::string sam = sam_name + "\t" +
-                    // std::to_string(flag) + "\t" +
-                    // rname + "\t" +
-                    // std::to_string(std::get<1>(region.first) + 1) + "\t" +
-                    // std::to_string(mapq) + "\t" +
-                    // preclip + std::get<2>(cigar) + postclip + "\t" +
-                    // "*" + "\t" +
-                    // "0" + "\t" +
-                    // "0" + "\t" +
-                    // query + "\t" +
-                    // qual + "\t" +
-                    // "NM:i:" + std::to_string(query.size() - std::get<0>(cigar) - clipped) + "\t" +
-                    // "AS:i:" + std::to_string(std::get<1>(cigar)) + "\n";
   return m;
 }
 
@@ -157,7 +141,6 @@ std::pair<mapping_t, mapping_t> pair_mapping(const std::string& qname,
     const std::string& rname, const std::string& ref,
     const std::pair<region_t, region_t>& region_pair, const mapping_params_t& parameters,
     const int32_t clipped1, const int32_t clipped2) {
-  // std::string sam_name = qname.substr(0, qname.find('/', 0));
   int32_t insert_size = std::get<1>(region_pair.first.first) < std::get<1>(region_pair.second.first)
                         ? std::get<1>(region_pair.second.second) - std::get<1>(region_pair.first.first)
                         : std::get<1>(region_pair.second.first) - std::get<1>(region_pair.first.second);
@@ -189,38 +172,7 @@ std::pair<mapping_t, mapping_t> pair_mapping(const std::string& qname,
                                                            query2.c_str() + start2, query2.size() - clipped2, 
                                                            parameters);
   int prop_aligned = std::get<0>(cigar1) > 0.5 * query1.size() && std::get<0>(cigar2) > 0.5 * query2.size() ? 0x2 : 0x0;
-  // int flag1 = 0x1 | prop_aligned | (std::get<2>(region_pair.first.first) ? 0x10 : 0x0) 
-  //                 | (std::get<2>(region_pair.second.first) ? 0x20 : 0x0) | 0x40;
-  // int flag2 = 0x1 | prop_aligned | (std::get<2>(region_pair.second.first) ? 0x10 : 0x0) 
-  //                 | (std::get<2>(region_pair.first.first) ? 0x20 : 0x0) | 0x80;
   double dev = ((double)abs(insert_size) - parameters.insert_size) / (0.1 * parameters.insert_size);              
-  // uint32_t mapq = (uint32_t)round((double)(std::get<0>(cigar1) + std::get<0>(cigar2)) / (query1.size() + query2.size()) * 60 - dev*dev);
-  // std::string sam1 = sam_name + "\t" +
-  //                    std::to_string(flag1) + "\t" +
-  //                    rname + "\t" +
-  //                    std::to_string(std::get<1>(region_pair.first.first) + 1) + "\t" +
-  //                    std::to_string(mapq) + "\t" +
-  //                    preclip1 + std::get<2>(cigar1) + postclip1 + "\t" +
-  //                    "=" + "\t" +
-  //                    std::to_string(std::get<1>(region_pair.second.first) + 1) + "\t" +
-  //                    std::to_string(insert_size) + "\t" +
-  //                    query1 + "\t" +
-  //                    qual1 + "\t" +
-  //                    "NM:i:" + std::to_string(query1.size() - std::get<0>(cigar1) - clipped1) + "\t" +
-  //                    "AS:i:" + std::to_string(std::get<1>(cigar1)) + "\n";
-  // std::string sam2 = sam_name + "\t" +
-  //                    std::to_string(flag2) + "\t" +
-  //                    rname + "\t" +
-  //                    std::to_string(std::get<1>(region_pair.second.first) + 1) + "\t" +
-  //                    std::to_string(mapq) + "\t" +
-  //                    preclip2 + std::get<2>(cigar2) + postclip2 + "\t" +
-  //                    "=" + "\t" +
-  //                    std::to_string(std::get<1>(region_pair.first.first) + 1) + "\t" +
-  //                    std::to_string(-insert_size) + "\t" +
-  //                    query2 + "\t" +
-  //                    qual2 + "\t" +
-  //                    "NM:i:" + std::to_string(query2.size() - std::get<0>(cigar2) - clipped2) + "\t" +
-  //                    "AS:i:" + std::to_string(std::get<1>(cigar2)) + "\n";
   mapping_t m1, m2;
   m1.qname = m2.qname = qname.substr(0, qname.find('/', 0));
   m1.flag = 0x1 | prop_aligned | (std::get<2>(region_pair.first.first) ? 0x10 : 0x0) 

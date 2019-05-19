@@ -64,7 +64,7 @@ public:
         }
       }
       average /= num;
-      fprintf(stderr, "Stats for: %s\n"
+      fprintf(stderr, "[srmapper-stats] stats for: %s\n"
                       "  Number of sequences: %u\n"
                       "  Average length:      %g\n"
                       "  Maximum length:      %u\n"

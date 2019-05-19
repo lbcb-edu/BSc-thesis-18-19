@@ -241,7 +241,7 @@ int main(int argc, char **argv) {
 
   auto i_start = std::chrono::steady_clock::now();
 
-  fprintf(stderr, "\nLoading reference... ");
+  fprintf(stderr, "[srmapper-load] loading reference... ");
 
   std::string reference_file(argv[optind]);
   if (!check_extension(reference_file, fasta_formats)) {
@@ -251,8 +251,8 @@ int main(int argc, char **argv) {
   std::vector<std::unique_ptr<fastaq::FastAQ>> reference;
   fastaq::FastAQ::parse(reference, reference_file, check_extension(reference_file, fasta_formats));
 
-  fprintf(stderr, "\rLoaded reference.        \n"
-                  "\nIndexing reference... ");
+  fprintf(stderr, "\r[srmapper-load] loaded reference           \n"
+                  "[srmapper-index] indexing reference... ");
 
   std::shared_ptr<thread_pool::ThreadPool> thread_pool = thread_pool::createThreadPool(t);
 
@@ -281,14 +281,14 @@ int main(int argc, char **argv) {
   prep_ref(t_minimizers, parameters.f);
   std::unordered_map<uint64_t, index_pos_t> ref_index = index_ref(t_minimizers);
 
-  fprintf(stderr, "\rIndexed reference.        \n\n");
+  fprintf(stderr, "\r[srmapper-index] indexed reference        \n");
   fastaq::FastAQ::print_statistics(reference, reference_file);
 
   auto i_end = std::chrono::steady_clock::now();
 
   auto i_interval = std::chrono::duration_cast<std::chrono::duration<double>>(i_end - i_start);
 
-  std::cerr << "\nIndexing time: " << i_interval.count() << " sec" << std::endl;
+  std::cerr << "[srmapper-index] indexing time: " << i_interval.count() << " sec" << std::endl;
   
   auto m_start = std::chrono::steady_clock::now();
 
@@ -297,7 +297,7 @@ int main(int argc, char **argv) {
                "@PG\tID:srmapper\tPN:srmapper\tCL:" << argv[0] << " " << cl_flags << argv[optind] << " ";
 
   if (argc - optind == 3) {
-    fprintf(stderr, "\nLoading paired-end reads... ");
+    fprintf(stderr, "[srmapper-load] loading paired-end reads... ");
 
     std::string reads_file1(argv[optind + 1]);
     std::string reads_file2(argv[optind + 2]);
@@ -310,13 +310,12 @@ int main(int argc, char **argv) {
     fastaq::FastAQ::parse(paired_reads.first, reads_file1, check_extension(reads_file1, fasta_formats));
     fastaq::FastAQ::parse(paired_reads.second, reads_file2, check_extension(reads_file2, fasta_formats));
 
-    fprintf(stderr, "\rLoaded paired-end reads.        \n\n");
+    fprintf(stderr, "\r[srmapper-load] loaded paired-end reads        \n");
     fastaq::stats pr1_stats = fastaq::FastAQ::print_statistics(paired_reads.first, reads_file1);
     fastaq::stats pr2_stats = fastaq::FastAQ::print_statistics(paired_reads.second, reads_file2);
-    fprintf(stderr, "\n");
 
     if (paired) {
-      fprintf(stderr, "Using insert size information.\n");
+      fprintf(stderr, "[srmapper-map] using insert size information\n");
       if (pr1_stats.num != pr2_stats.num) {
         fprintf(stderr, "[srmapper] error: Paired-end read files must have equal number of reads (pairs).\n");
         exit(1);
@@ -340,7 +339,7 @@ int main(int argc, char **argv) {
         std::cout << it.get();
       }
   } else {
-    fprintf(stderr, "\nLoading reads... ");
+    fprintf(stderr, "[srmapper-load] loading reads... ");
     std::string reads_file(argv[optind + 1]);
     if (!(check_extension(reads_file, fasta_formats) || check_extension(reads_file, fastq_formats))) {
       fprintf(stderr, "[srmapper] error: Unsupported format. Check --help for supported file formats.\n");
@@ -349,7 +348,7 @@ int main(int argc, char **argv) {
     std::vector<std::unique_ptr<fastaq::FastAQ>> reads;
     fastaq::FastAQ::parse(reads, reads_file, check_extension(reads_file, fasta_formats));
 
-    fprintf(stderr, "\rLoaded reads.        \n");
+    fprintf(stderr, "\r[srmapper-load] loaded reads        \n");
     fastaq::FastAQ::print_statistics(reads, reads_file);
 
     std::cout << argv[optind + 1] << "\n";
@@ -374,7 +373,7 @@ int main(int argc, char **argv) {
 
   auto m_interval = std::chrono::duration_cast<std::chrono::duration<double>>(m_end - m_start);
 
-  std::cerr << "\nMapping time: " << m_interval.count() << " sec" << std::endl;
+  std::cerr << "[srmapper-map] mapping time: " << m_interval.count() << " sec" << std::endl;
 
   return 0;
 }
