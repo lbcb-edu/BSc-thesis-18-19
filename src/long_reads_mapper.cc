@@ -15,15 +15,20 @@
 #include <deque>
 #include <map>
 #include <algorithm>
+#include <cstring>
+
 
 #include "long_reads_mapper.hpp"
 #include "bioparser/bioparser.hpp"
 #include "thread_pool/thread_pool.hpp"
 #include "brown_minimizers.hpp"
+#include "ksw2.h"
 
 
 const std::set<std::string> fasta_formats = {".fasta", ".fa", ".fasta.gz", ".fa.gz"};
 const std::set<std::string> fastq_formats = {".fastq", ".fq", ".fastq.gz", ".fq.gz"};
+
+std::map<char, char> complement_map = {{'C', 'G'}, {'A', 'T'}, {'T', 'A'}, {'U', 'A'}, {'G', 'C'}};
 
 typedef std::tuple<unsigned int, unsigned int, bool> minimizer;
 typedef std::tuple<unsigned int, unsigned int, bool> triplet_t;
@@ -152,6 +157,7 @@ void help(void) {
          "  -t  or  --threads        <int>\n"
          "                             default: 3\n"
          "                             number of threads\n"
+         "  -c  or  --cigar          enable cigar string\n"
   );
 }
 
@@ -195,8 +201,104 @@ bool contains_extension(const std::string file, const std::set<std::string> &ext
 
 
 
+//za ispis
+void opcenitInfo(std::vector<minimizer>& start_minimizers, std::vector<minimizer>& end_minimizers,
+  std::vector<minimizer_hit_t>& start_hits_same, std::vector<minimizer_hit_t>& start_hits_rev,
+  std::vector<minimizer_hit_t>& end_hits_same, std::vector<minimizer_hit_t>& end_hits_rev, unsigned int fobj, unsigned int sequence_length){
+
+    printf("Br. %d\t", fobj);
+    printf("velicina sekvence: %5u\t", sequence_length);
+    printf("Velicina: start_minimizers %lu\tend_minimizers %lu\t", start_minimizers.size(), end_minimizers.size());
+    printf("Hitova: start_same %lu\tstart_rev %lu\tend_same %lu\tend_rev %lu\n", start_hits_same.size(), start_hits_rev.size(),
+          end_hits_same.size(), end_hits_rev.size());
+}
+
+void regijeInfo(std::unordered_map<unsigned int, int>& start_hits_region, std::unordered_map<unsigned int, int>& start_hits_region_rev, 
+  std::unordered_map<unsigned int, int>& end_hits_region, std::unordered_map<unsigned int, int>& end_hits_region_rev){
+
+    printf("Pocetak:\n");
+    for (auto& it: start_hits_region) {
+      if(it.second < 5) continue;
+      printf("Regija %d ima %d hitova\n", it.first, it.second);
+    }
+    printf("Reverse------------------\n");
+    for (auto& it: start_hits_region_rev) {
+      if(it.second < 5) continue;
+      printf("Regija %d ima %d hitova\n", it.first, it.second);
+    }
+    printf("Kraj: \n");
+    for (auto& it: end_hits_region) {
+      if(it.second < 5) continue;
+      printf("Regija %d ima %d hitova\n", it.first, it.second);
+    }
+    printf("Reverse------------------\n");
+    for (auto& it: end_hits_region_rev) {
+      if(it.second < 5) continue;
+      printf("Regija %d ima %d hitova\n", it.first, it.second);
+    }
+}
+
+void top3Info(std::vector<region_hits>& start_hits_top, std::vector<region_hits>& start_hits_top_rev,
+  std::vector<region_hits>& end_hits_top, std::vector<region_hits>& end_hits_top_rev){
+    printf("Pocetak:\n");
+    for(auto it : start_hits_top){
+      printf("Regija %d ima %d hitova\n", it.first, it.second);
+    }
+    for(auto it : start_hits_top_rev){
+      printf("Regija %d ima %d hitova, reverse\n", it.first, it.second);
+    }
+    printf("Kraj:\n");
+    for(auto it : end_hits_top){
+      printf("Regija %d ima %d hitova\n", it.first, it.second);
+    }
+    for(auto it : end_hits_top_rev){
+      printf("Regija %d ima %d hitova, reverse\n", it.first, it.second);
+    }
+}
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+std::string reverse_complement(const std::string& original, unsigned int pos, unsigned int length) {
+  std::string rc(original.begin() + pos, original.begin() + pos + length);
+  unsigned int j = pos + length - 1;
+  for (unsigned int i = 0; i < length; ++i) {
+    rc[i] = complement_map[original[j--]];
+  }
+  return rc;
+}
 
 void prep_ref(std::vector<triplet_t>& t_minimizers, const float f) {
   std::unordered_map<unsigned int, unsigned int> ref_min_frequency;
@@ -296,6 +398,7 @@ std::unordered_map<unsigned int, int> parse_hits_map(std::vector<minimizer_hit_t
 }
 
 
+// to stavi u metodu a ne ovak ko funkciju
 bool hit_ordering_top_3(const region_hits& a, const region_hits& b) {
   return std::get<1>(a) > std::get<1>(b);
 }
@@ -318,19 +421,161 @@ std::vector<region_hits> find_top_3(std::unordered_map<unsigned int, int>& map, 
     return result;
 }
 
+std::vector<region_hits> find_top_all(std::unordered_map<unsigned int, int>& map){
+  std::vector<region_hits> result;
+    for (auto& it: map) {
+      result.push_back(it);
+    }
+    std::sort(result.begin(), result.end(), hit_ordering_top_3);
+    return result;
+}
+
+void find_regions(std::vector<region_hits>& start_hits_top, std::vector<region_hits>& start_hits_top_rev,
+  std::vector<region_hits>& end_hits_top, std::vector<region_hits>& end_hits_top_rev,
+  int& hits_number, unsigned int& starting_region, unsigned int& ending_region, bool& rev, int region_size){
+
+  for(auto& start : start_hits_top){
+    for(auto& end : end_hits_top){
+      if(end.first == (start.first + region_size) || end.first == (start.first + region_size - 1)){
+        int sum = start.second + end.second;
+        if(sum > hits_number){
+          hits_number = sum;
+          starting_region = start.first;
+          ending_region = end.first;
+        }
+      }
+    }
+  }
+
+  for(auto start : start_hits_top_rev){
+    for(auto end : end_hits_top_rev){
+      if(start.first == (end.first + region_size) || start.first == (end.first + region_size - 1)){
+        int sum = start.second + end.second;
+        if(sum > hits_number){
+          hits_number = sum;
+          starting_region = start.first;
+          ending_region = end.first;
+          rev = true;
+        }
+      }
+    }
+  }
+}
+
+void find_positions(std::vector<minimizer_hit_t>& start_hits_same, std::vector<minimizer_hit_t>& start_hits_rev,
+  std::vector<minimizer_hit_t>& end_hits_same, std::vector<minimizer_hit_t>& end_hits_rev, bool rev, unsigned int starting_region,
+  unsigned int ending_region, unsigned int& start, unsigned int& end, unsigned int& ref_start, unsigned int& ref_end,  int k_value){
+  if(!rev){
+    for(auto& minimizer : start_hits_same){
+      if((minimizer.second / k_value) == starting_region || (minimizer.second / k_value) - 1 == starting_region) {
+        if(minimizer.first < start){
+          start = minimizer.first;
+          ref_start = minimizer.second;
+        } 
+      }
+    }
+    for(auto& minimizer : end_hits_same){
+      if((minimizer.second / k_value) == ending_region || (minimizer.second / k_value) - 1 == ending_region) {
+        if(minimizer.first > end){
+          end = minimizer.first;
+          ref_end = minimizer.second;
+        } 
+      }
+    }
+  }else{
+    for(auto& minimizer : start_hits_rev){
+      if((minimizer.second / k_value) == starting_region || (minimizer.second / k_value) - 1 == starting_region){
+        if(minimizer.first < start){
+          start = minimizer.first;
+          ref_end = minimizer.second;
+        }
+      }
+    }
+    for(auto& minimizer : end_hits_rev){
+      if((minimizer.second / k_value) == ending_region || (minimizer.second / k_value) - 1 == ending_region){
+        if(minimizer.first > end){
+          end = minimizer.first;
+          ref_start = minimizer.second;
+        }
+      }
+    }
+  }
+}
+
+
+void find_what_exists(std::vector<region_hits>& start_hits_top, std::vector<region_hits>& start_hits_top_rev,
+  std::vector<region_hits>& end_hits_top, std::vector<region_hits>& end_hits_top_rev, bool& bool_start, bool& bool_end){
+
+  bool bool_start_same = start_hits_top.size() > 0 ? true : false;
+  bool bool_end_same = end_hits_top.size() > 0 ? true : false;
+  bool bool_start_rev = start_hits_top_rev.size() > 0 ? true : false;
+  bool bool_end_rev = end_hits_top_rev.size() > 0 ? true : false;
+
+  bool_start = bool_start_same || bool_start_rev;
+  bool_end = bool_end_same || bool_end_rev;
+
+  if(bool_start && bool_end){
+    int max_start;
+    int max_end;
+
+    if(bool_start_same && bool_start_rev){
+      max_start = std::max(start_hits_top[0].second, start_hits_top_rev[0].second);
+    }else if(bool_start_same){
+      max_start = start_hits_top[0].second;
+    }else{
+      max_start = start_hits_top_rev[0].second;
+    }
+
+    if(bool_end_same && bool_end_rev){
+      max_end = std::max(end_hits_top[0].second, end_hits_top_rev[0].second);
+    }else if(bool_end_same){
+      max_end = end_hits_top[0].second;
+    }else{
+      max_end = end_hits_top_rev[0].second;
+    }
+
+    if(max_start > max_end){
+      bool_end = false;
+    }else{
+      bool_start = false;
+    }
+  }   
+}
+    
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 std::string map_paf(const std::vector<triplet_t>& t_minimizers,
     const std::unordered_map<unsigned int, minimizer_index_t>& ref_index,
     const std::vector<std::unique_ptr<FastAQ>>& fastaq_objects1,
     const std::vector<std::unique_ptr<FastAQ>>& fastaq_objects2,
     unsigned int k, unsigned int window_length,
     int match, int mismatch, int gap,
-    unsigned int t_begin, unsigned int t_end, int k_value) {
+    unsigned int t_begin, unsigned int t_end, int k_value, bool bool_cigar) {
 
+  std::string paf;
+  std::string sam;
 
   for (unsigned int fobj = t_begin; fobj < t_end; fobj++) {
 
     unsigned int sequence_length = fastaq_objects1[fobj]->sequence.size();
 
+    //ovo netreba jer su file-ovi vec filtrirani
     if(sequence_length < (unsigned) (2 * k_value)) continue;
 
     std::vector<minimizer> start_minimizers = brown::minimizers(fastaq_objects1[fobj]->sequence.c_str(), k_value, k, window_length);
@@ -349,200 +594,234 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
     std::unordered_map<unsigned int, int> end_hits_region = parse_hits_map(end_hits_same, k_value);
     std::unordered_map<unsigned int, int> end_hits_region_rev = parse_hits_map(end_hits_rev, k_value);
 
-    // opcenite informacije
-    // printf("Sekvenca broj %d : \n", fobj);
-    // printf("Velicina sekvence:  %u\n", sequence_length);
-    // printf("Start minimizers size : %lu\n", start_minimizers.size());
-    // printf("End minimizers size : %lu\n", end_minimizers.size());
-    // printf("start_hits_same hitova : %lu\n", start_hits_same.size());
-    // printf("start_hits_rev hitova : %lu\n", start_hits_rev.size());
-    // printf("end_hits_same hitova : %lu\n", end_hits_same.size());
-    // printf("end_hits_rev hitova : %lu\n", end_hits_rev.size());
 
-    // informacije o regijama
-    // printf("Pocetak :\n");
-    // for (auto& it: start_hits_region) {
-    //   if(it.second < 5) continue;
-    //   printf("Regija %d ima %d hitova\n", it.first, it.second);
-    // }
-    // printf("rev----------------\n");
-    // for (auto& it: start_hits_region_rev) {
-    //   if(it.second < 5) continue;
-    //   printf("Regija %d ima %d hitova\n", it.first, it.second);
-    // }
-    // printf("Kraj: \n");
-    // for (auto& it: end_hits_region) {
-    //   if(it.second < 5) continue;
-    //   printf("Regija %d ima %d hitova\n", it.first, it.second);
-    // }
-    // printf("rev----------------\n");
-    // for (auto& it: end_hits_region_rev) {
-    //   if(it.second < 5) continue;
-    //   printf("Regija %d ima %d hitova\n", it.first, it.second);
-    // }
+    // opcenitInfo(start_minimizers, end_minimizers, start_hits_same, start_hits_rev, end_hits_same,end_hits_rev, fobj, sequence_length);
+
     
 
     int region_size = sequence_length / k_value;
-    int threshold = 10;
+    int threshold = 5;
 
     std::vector<region_hits> start_hits_top = find_top_3(start_hits_region, threshold);
     std::vector<region_hits> start_hits_top_rev = find_top_3(start_hits_region_rev, threshold);
     std::vector<region_hits> end_hits_top = find_top_3(end_hits_region, threshold);
     std::vector<region_hits> end_hits_top_rev = find_top_3(end_hits_region_rev, threshold);
 
-    // informacije o 3 top regije
-    // printf("Pocetak :\n");
-    // for(auto it : start_hits_top){
-    //   printf("Regija %d ima %d hitova\n", it.first, it.second);
-    // }
-    // for(auto it : start_hits_top_rev){
-    //   printf("Regija %d ima %d hitova, reverse\n", it.first, it.second);
-    // }
-    // printf("Kraj: \n");
-    // for(auto it : end_hits_top){
-    //   printf("Regija %d ima %d hitova\n", it.first, it.second);
-    // }
-    // for(auto it : end_hits_top_rev){
-    //   printf("Regija %d ima %d hitova, reverse\n", it.first, it.second);
-    // }
+    
+    bool ispis = false; //izbrisi -> koristi se zbog testiranja
 
     int hits_number = 0;
     unsigned int starting_region = 0;
     unsigned int ending_region = 0;
     bool rev = false;
 
-    for(auto& start : start_hits_top){
-      for(auto& end : end_hits_top){
-        if(end.first == (start.first + region_size) || end.first == (start.first + region_size - 1)){
-          int sum = start.second + end.second;
-          if(sum > hits_number){
-            hits_number = sum;
-            starting_region = start.first;
-            ending_region = end.first;
-          }
-        }
-      }
-    }
-    for(auto start : start_hits_top_rev){
-      for(auto end : end_hits_top_rev){
-        if(start.first == (end.first + region_size) || start.first == (end.first + region_size - 1)){
-          int sum = start.second + end.second;
-          if(sum > hits_number){
-            hits_number = sum;
-            starting_region = start.first;
-            ending_region = end.first;
-            rev = true;
-          }
-        }
-      }
-    }
+    find_regions(start_hits_top, start_hits_top_rev, end_hits_top, end_hits_top_rev, hits_number, starting_region, ending_region, rev, region_size);
+
+    bool bool_start = false;
+    bool bool_end = false;
 
     if(hits_number == 0){
-      printf("%u PRESKACEM\n", sequence_length);
-      //ispis top 3 regije za pocetak i kraj
-      // printf("Pocetak :\n");
-      // for(auto it : start_hits_top){
-      //   printf("Regija %d ima %d hitova\n", it.first, it.second);
-      // }
-      // for(auto it : start_hits_top_rev){
-      //   printf("Regija %d ima %d hitova, reverse\n", it.first, it.second);
-      // }
-      // printf("Kraj: \n");
-      // for(auto it : end_hits_top){
-      //   printf("Regija %d ima %d hitova\n", it.first, it.second);
-      // }
-      // for(auto it : end_hits_top_rev){
-      //   printf("Regija %d ima %d hitova, reverse\n", it.first, it.second);
-      // }
-      // printf("\n");
-      continue;
+
+      find_what_exists(start_hits_top, start_hits_top_rev, end_hits_top, end_hits_top_rev, bool_start, bool_end);
+
+      //ako nema pocetka ni kraja preskoci
+      //stavi ispis koji zelis
+      if(!bool_start && !bool_end){
+        // printf("%s PRESKACEM, nema niceg\n", fastaq_objects1[fobj]->name.c_str());
+        continue;
+      }
+      
+      //odredi koliku duljinu zelis
+      double percentage = 0.5;
+
+      //ima pocetak
+      if(bool_start){
+
+        bool bool_found_something = false;
+        int stop = region_size * percentage;
+
+        for(int i = 1; i <= stop + 1; i++){
+
+          end_hits_same.clear();
+          end_hits_rev.clear();
+
+          end_minimizers = brown::minimizers(fastaq_objects1[fobj]->sequence.substr(sequence_length - (i * k_value) - 1, k_value).c_str(), k_value, k, window_length);
+          find_minimizer_hits(ref_index, t_minimizers, end_minimizers, end_hits_same, end_hits_rev);
+
+          end_hits_region = parse_hits_map(end_hits_same, k_value);
+          end_hits_region_rev = parse_hits_map(end_hits_rev, k_value);
+
+          end_hits_top = find_top_all(end_hits_region);
+          end_hits_top_rev = find_top_all(end_hits_region_rev);
+
+          find_regions(start_hits_top, start_hits_top_rev, end_hits_top, end_hits_top_rev, hits_number, starting_region, ending_region, rev, region_size - (i - 1));
+
+          if (hits_number != 0){
+            bool_found_something = true;
+            region_size = region_size - (i - 1);
+            break;
+          }
+        }
+
+        //ako nije nista nadeno preskoci
+        //stavi ispis koji zelis
+        if(!bool_found_something){
+          // printf("%s PRESKACEM, ima pocetak, ali nije nadeno\n", fastaq_objects1[fobj]->name.c_str());
+          continue;
+        }
+        ispis = true;  //ovo ti je za testiranje
+      }
+
+
+      if(bool_end){
+        
+        bool bool_found_something = false;
+        int stop = region_size * percentage;
+
+        for(int i =  0; i <= stop; i++){
+
+          start_hits_same.clear();
+          start_hits_rev.clear();
+
+          start_minimizers = brown::minimizers(fastaq_objects1[fobj]->sequence.substr((i * k_value), k_value).c_str(), k_value, k, window_length);
+          find_minimizer_hits(ref_index, t_minimizers, start_minimizers, start_hits_same, start_hits_rev);
+
+          start_hits_region = parse_hits_map(start_hits_same, k_value);
+          start_hits_region_rev = parse_hits_map(start_hits_rev, k_value);
+
+          start_hits_top = find_top_all(start_hits_region);
+          start_hits_top_rev = find_top_all(start_hits_region_rev);
+
+          find_regions(start_hits_top, start_hits_top_rev, end_hits_top, end_hits_top_rev, hits_number, starting_region, ending_region, rev, region_size - i);
+
+          if (hits_number != 0){
+            bool_found_something = true;
+            region_size = region_size - i;
+            break;
+          }
+        }
+
+        //ako nije nista nadeno preskoci
+        //stavi ispis koji zelis
+        if(!bool_found_something){
+          // printf("%s PRESKACEM, ima kraj, ali nije nadeno\n", fastaq_objects1[fobj]->name.c_str());
+          continue;
+        }
+        ispis = true;
+      }
     }
-
-    // test za + 
-    // if(!rev){
-    //   int prvih10=0;
-    //   std::vector<minimizer_hit_t> v;
-    //   for(auto& minimizer : start_hits_same){
-    //    if(minimizer.second / k_value != starting_region && minimizer.second / k_value -1 != starting_region) continue;
-    //     v.push_back(minimizer);
-    //   }
-    //   std::sort(v.begin(), v.end(), 
-    //     [] (const minimizer_hit_t& a, const minimizer_hit_t& b) {
-    //     if (std::get<0>(a) == std::get<0>(b)){
-    //       return std::get<1>(a) < std::get<1>(b);
-    //     }
-    //     return std::get<0>(a) < std::get<0>(b);});
-
-    //   for(auto& minimizer : v){
-    //     if(prvih10 > 10) break;
-    //     printf("%d , %d\n", minimizer.first, minimizer.second);
-    //     prvih10++;
-    //   }
-    //   printf("\n");
-    //   prvih10= 0;
-    //   std::vector<minimizer_hit_t> v1;
-    //   for(auto& minimizer : end_hits_same){
-    //    if(minimizer.second / k_value != ending_region && minimizer.second / k_value -1 != ending_region) continue;
-    //     v1.push_back(minimizer);
-    //   }
-    //   std::sort(v1.begin(), v1.end(),
-    //     [] (const minimizer_hit_t& a, const minimizer_hit_t& b) {
-    //     if (std::get<0>(a) == std::get<0>(b)){
-    //       return std::get<1>(a) < std::get<1>(b);
-    //     }
-    //     return std::get<0>(a) > std::get<0>(b);});
-
-    //   for(auto& minimizer : v1){
-    //     if(prvih10 > 10) break;
-    //     printf("%d = %u, %d\n", minimizer.first, sequence_length - k_value - 1 + minimizer.first, minimizer.second);
-    //     prvih10++;
-    //   }
-    // }
 
     unsigned int start = k_value;
     unsigned int end = 0;
     unsigned int ref_start = 0;
     unsigned int ref_end = 0;
 
-    if(!rev){
-      for(auto& minimizer : start_hits_same){
-        if(minimizer.second / k_value != starting_region && minimizer.second / k_value -1 != starting_region) continue;
-        if(minimizer.first < start){
-          start = minimizer.first;
-          ref_start = minimizer.second;
-        } 
+    find_positions(start_hits_same, start_hits_rev, end_hits_same,end_hits_rev, rev, starting_region, ending_region, start, end, ref_start, ref_end, k_value);
+
+
+    
+    ref_end += k;
+    end = sequence_length - k_value - 1 + end + k;
+
+    //ako se trazio samo kraj ili samo pocetak
+    if(region_size != sequence_length / k_value){
+      if(bool_start){
+        int diff = (sequence_length / k_value - region_size) + 1;
+        end = sequence_length - k_value * diff - 1 + end + k;
       }
-      for(auto& minimizer : end_hits_same){
-        if(minimizer.second / k_value != ending_region && minimizer.second / k_value -1 != ending_region) continue;
-        if(minimizer.first > end){
-          end = minimizer.first;
-          ref_end = minimizer.second;
-        } 
-      }
-    }else{
-      for(auto& minimizer : start_hits_rev){
-        if(minimizer.second / k_value != starting_region && minimizer.second / k_value -1 != starting_region) continue;
-        if(minimizer.first < start){
-          start = minimizer.first;
-          ref_end = minimizer.second;
-        } 
-      }
-      for(auto& minimizer : end_hits_rev){
-        if(minimizer.second / k_value != ending_region && minimizer.second / k_value -1 != ending_region) continue;
-        if(minimizer.first > end){
-          end = minimizer.first;
-          ref_start = minimizer.second;
-        }
+      if(bool_end){
+        int diff = sequence_length / k_value - region_size;
+        start += diff * k_value;
       }
     }
 
-    end = sequence_length - k_value - 1 + end + k;
-    ref_end += k;
+    std::string cigar ("NO CIGAR");
 
-    printf("%u\t%u\t%u\t%c\t%u\t%u\n", sequence_length, start, end, rev ? '-' : '+', ref_start, ref_end);
+    //ksw2
+    if(bool_cigar){
+      int a = 1;
+      int b = -2;
+      int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
+      int tl = ref_end - ref_start;
+      int ql = end - start;
+      uint8_t *ts, *qs, c[256];
+      ksw_extz_t ez;
+      memset(&ez, 0, sizeof(ksw_extz_t));
+      memset(c, 5, 256);
+      c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
+      c['G'] = c['g'] = 2; c['T'] = c['t'] = 3; c['U'] = c['u'] = 3;
+      ts = (uint8_t*)malloc(tl);
+      qs = (uint8_t*)malloc(ql);
+
+      if(!rev){
+        for (int i = 0; i < tl; ++i) ts[i] = c[(uint8_t)fastaq_objects1[fobj]->sequence[i + ref_start]]; // encode to 0/1/2/3
+      }else{
+        for (int i = 0; i < tl; ++i) ts[i] = (uint8_t)3 - c[(uint8_t)fastaq_objects1[fobj]->sequence[i + ref_start]]; // encode to 0/1/2/3
+      }
+      
+      for (int i = 0; i < ql; ++i) qs[i] = c[(uint8_t)fastaq_objects2[0]->sequence[i + start]];
+      
+      ksw_extz2_sse(0, ql, qs, tl, ts, 5, mat, 2, 1, -1, -1, 0, 0, &ez);
+
+      cigar.clear();
+      for (int i = 0; i < ez.n_cigar; ++i) cigar += std::to_string(ez.cigar[i]>>4) + "MID"[ez.cigar[i]&0xf];
+
+      free(ez.cigar); free(ts); free(qs);
+    }
+
+
+    std::string seq;
+    if(rev){
+      seq = reverse_complement(fastaq_objects1[fobj]->sequence, start, end - start);
+    }else{
+      seq = fastaq_objects1[fobj]->sequence.substr(start, end - start);
+    }
+
+    sam += fastaq_objects1[fobj]->name + "\t" +
+          "??" + "\t" + //FLAG
+          fastaq_objects2[0]->name + "\t" +
+          std::to_string(ref_start + 1) + "\t" +
+          "255" + "\t" + //MAPQ
+          cigar + "\t" +
+          "*" + "\t" + //RNEXT
+          "0" + "\t" + //PNEXT
+          "0" + "\t" +  //TLEN
+          seq + "\t" +
+          "*\n"; //QUAL
+
+
+    //ispis prilagodenog PAF za testiranje
+    std::string reverse;
+    if(rev){
+      reverse = "-";
+    }else{
+      reverse = "+";
+    }
+    paf = paf + fastaq_objects1[fobj]->name.c_str() + "\t" + std::to_string(sequence_length) + "\t" + std::to_string(start) + "\t" + std::to_string(end) + "\t" + reverse + "\t" + std::to_string(ref_start) + "\t" + std::to_string(ref_end) + "\n";
+
+
+
+    // printf("Top 3 uz region_size:%d i nade starting_region %lu, ending_region %lu\n", region_size, starting_region, ending_region);
+    // printf("%s\t%u\t%u\t%u\t%c\t%u\t%u\n",fastaq_objects1[fobj]->name.c_str(), sequence_length, start, end, rev ? '-' : '+', ref_start, ref_end);
+
+    // if(ispis){
+      // printf("%s\t%u\t%u\t%u\t%c\t%u\t%u\n",fastaq_objects1[fobj]->name.c_str(), sequence_length, start, end, rev ? '-' : '+', ref_start, ref_end);
+      // printf("%d\t%lu\t%lu", region_size, starting_region, ending_region);
+      // top3Info(start_hits_top, start_hits_top_rev, end_hits_top, end_hits_top_rev);
+    // } 
+
+    // ispis ako se zeli vidjet podatci za regije i kak se odreduje
+    // printf("%s %lu \n", fastaq_objects1[fobj]->name.c_str(), sequence_length);
+    // regijeInfo(start_hits_region, start_hits_region_rev, end_hits_region, end_hits_region_rev);
+    // printf("Top 3 uz region_size:%d i nade starting_region %lu, ending_region %lu\n", region_size, starting_region, ending_region);
+    // top3Info(start_hits_top, start_hits_top_rev, end_hits_top, end_hits_top_rev);
+    // printf("%u\t%u\t%u\t%c\t%u\t%u\n", sequence_length, start, end, rev ? '-' : '+', ref_start, ref_end);
     // printf("\n");
   }
-  return "";
+
+  return sam;
+  // return paf;
+  // return "";
 }
 
 
@@ -591,8 +870,9 @@ int main (int argc, char **argv) {
   int k = 15;
   int t = 2;
   float f = 0.001f;
+  bool bool_cigar = false;
 
-  while ((optchr = getopt_long(argc, argv, "hvm:g:M:k:w:t:", long_options, NULL)) != -1) {
+  while ((optchr = getopt_long(argc, argv, "hvm:g:M:k:w:t:c", long_options, NULL)) != -1) {
     switch (optchr) {
       case 'h': {
         help();
@@ -620,6 +900,10 @@ int main (int argc, char **argv) {
       }
       case 'k': {
         k = atoi(optarg);
+        break;
+      }
+      case 'c': {
+        bool_cigar = true;
         break;
       }
       case 't': {
@@ -711,28 +995,30 @@ int main (int argc, char **argv) {
   std::unordered_map<unsigned int, minimizer_index_t> ref_index = index_ref(t_minimizers);
 
   //prvih 250 - zbog testiranja
-  map_paf(std::ref(t_minimizers), std::ref(ref_index), std::ref(fastaq_objects1), std::ref(fastaq_objects2),
-      k, window_length, match, mismatch, gap, 0, 250, k_value);
+
+  // std::cout << map_paf(std::ref(t_minimizers), std::ref(ref_index), std::ref(fastaq_objects1), std::ref(fastaq_objects2),
+  //     k, window_length, match, mismatch, gap, 0, 250, k_value, bool_cigar);
 
 
   // kod za visedretvenost
-  // std::shared_ptr<thread_pool::ThreadPool> thread_pool = thread_pool::createThreadPool(t);
 
-  // std::vector<std::future<std::string>> thread_futures;
+  std::shared_ptr<thread_pool::ThreadPool> thread_pool = thread_pool::createThreadPool(t);
 
-  // for (unsigned int tasks = 0; tasks < t - 1; ++tasks) {
-  //   thread_futures.emplace_back(thread_pool->submit_task(map_paf, std::ref(t_minimizers), std::ref(ref_index),
-  //     std::ref(fastaq_objects1), std::ref(fastaq_objects2),
-  //     k, window_length, alignment, match, mismatch, gap, tasks * fastaq_objects1.size() / t, (tasks + 1) * fastaq_objects1.size() / t, bw, c, k_value));  
-  // }
-  // thread_futures.emplace_back(thread_pool->submit_task(map_paf, std::ref(t_minimizers), std::ref(ref_index),
-  //     std::ref(fastaq_objects1), std::ref(fastaq_objects2),
-  //     k, window_length, alignment, match, mismatch, gap, (t - 1) * fastaq_objects1.size() / t, fastaq_objects1.size(), bw, c, k_value));
+  std::vector<std::future<std::string>> thread_futures;
+
+  for (unsigned int tasks = 0; tasks < t - 1; ++tasks) {
+    thread_futures.emplace_back(thread_pool->submit_task(map_paf, std::ref(t_minimizers), std::ref(ref_index),
+      std::ref(fastaq_objects1), std::ref(fastaq_objects2),
+      k, window_length, match, mismatch, gap, tasks * fastaq_objects1.size() / t, (tasks + 1) * fastaq_objects1.size() / t, k_value, bool_cigar));  
+  }
+  thread_futures.emplace_back(thread_pool->submit_task(map_paf, std::ref(t_minimizers), std::ref(ref_index),
+      std::ref(fastaq_objects1), std::ref(fastaq_objects2),
+      k, window_length, match, mismatch, gap, (t - 1) * fastaq_objects1.size() / t, fastaq_objects1.size(), k_value, bool_cigar));
   
-  // for (auto& it : thread_futures) {
-  //   it.wait();
-  //   std::cout << it.get();
-  // }
+  for (auto& it : thread_futures) {
+    it.wait();
+    std::cout << it.get();
+  }
 
   return 0;
 }
