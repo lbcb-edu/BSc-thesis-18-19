@@ -65,10 +65,10 @@ public:
       }
       average /= num;
       fprintf(stderr, "[srmapper-stats] stats for: %s\n"
-                      "  Number of sequences: %u\n"
-                      "  Average length:      %g\n"
-                      "  Maximum length:      %u\n"
-                      "  Minimum length:      %u\n",
+                      "  number of sequences: %u\n"
+                      "  average length:      %g\n"
+                      "  maximum length:      %u\n"
+                      "  minimum length:      %u\n",
                       file.c_str(), num, average, max, min);
       return {num, average, max, min};
   }

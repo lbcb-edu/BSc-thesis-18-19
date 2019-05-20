@@ -9,7 +9,7 @@ struct mapping_params_t {
   int32_t mis;
   int32_t gapo;
   int32_t gape;
-  uint32_t band;
+  int32_t band;
   uint32_t k;
   uint32_t w;
   float f;

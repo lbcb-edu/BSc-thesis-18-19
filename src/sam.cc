@@ -39,7 +39,8 @@ std::tuple<uint32_t, int32_t, std::string> ksw2(const char* target, const uint32
   for (int i = 0; i < q_len; ++i) {
     qs[i] = (c[(uint8_t)query[i]] & 3);
   }
-  ksw_extz2_sse(0, q_len, qs, t_len, ts, 5, mat, parameters.gapo, parameters.gape, parameters.band, -1, 0, 0, &ez);
+  ksw_extz2_sse(0, q_len, qs, t_len, ts, 5, mat, 
+                parameters.gapo, parameters.gape, (parameters.band == -2 ? q_len / 2 : parameters.band), -1, 0, 0, &ez);
   std::string cigar;
   uint32_t matches = 0;
   uint32_t t_pos = 0;
