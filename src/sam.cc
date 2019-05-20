@@ -172,8 +172,8 @@ std::pair<mapping_t, mapping_t> pair_mapping(const std::string& qname,
   std::tuple<uint32_t, int32_t, std::string> cigar2 = ksw2(ref.c_str() + std::get<1>(region_pair.second.first), query2.size() - clipped2, 
                                                            query2.c_str() + start2, query2.size() - clipped2, 
                                                            parameters);
-  int prop_aligned = std::get<0>(cigar1) > 0.5 * query1.size() && std::get<0>(cigar2) > 0.5 * query2.size() ? 0x2 : 0x0;
-  double dev = ((double)abs(insert_size) - parameters.insert_size) / (0.1 * parameters.insert_size);              
+  int prop_aligned = (float)abs(abs(insert_size) - (int32_t)parameters.insert_size) < 5 * parameters.sd ? 0x2 : 0x0;
+  double z = ((double)abs(insert_size) - parameters.insert_size) / (5 * parameters.sd);              
   mapping_t m1, m2;
   m1.qname = m2.qname = qname.substr(0, qname.find('/', 0));
   m1.flag = 0x1 | prop_aligned | (std::get<2>(region_pair.first.first) ? 0x10 : 0x0) 
@@ -183,8 +183,8 @@ std::pair<mapping_t, mapping_t> pair_mapping(const std::string& qname,
   m1.rname = m2.rname = rname;
   m1.pos = std::get<1>(region_pair.first.first) + 1;
   m2.pos = std::get<1>(region_pair.second.first) + 1;
-  m1.mapq = (uint32_t)round(std::max((double)std::get<0>(cigar1) / (query1.size() - (clipped1 / 2)) * 60 - dev*dev, (double)0));
-  m2.mapq = (uint32_t)round(std::max((double)std::get<0>(cigar2) / (query2.size() - (clipped2 / 2)) * 60 - dev*dev, (double)0));
+  m1.mapq = (uint32_t)round(std::max((double)std::get<0>(cigar1) / (query1.size() - (clipped1 / 2)) * 60 - z*z, (double)0));
+  m2.mapq = (uint32_t)round(std::max((double)std::get<0>(cigar2) / (query2.size() - (clipped2 / 2)) * 60 - z*z, (double)0));
   m1.cigar = preclip1 + std::get<2>(cigar1) + postclip1;
   m2.cigar = preclip2 + std::get<2>(cigar2) + postclip2;
   m1.rnext = m2.rnext = "=";

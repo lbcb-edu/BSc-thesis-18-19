@@ -22,6 +22,11 @@ typedef std::unordered_map<uint32_t, std::vector<minimizer_hit_t>> bin_t;
 // Paired checked and grouped hits (true candidates)
 typedef std::pair<std::vector<std::vector<minimizer_hit_t>>, std::vector<std::vector<minimizer_hit_t>>> paired_checked_t;
 
+void infer_insert_size(const std::unordered_map<uint64_t, index_pos_t>& ref_index, 
+                       const std::vector<minimizer_t>& t_minimizers,
+                       const std::unique_ptr<fastaq::FastAQ>& reference, const paired_reads_t& paired_reads,
+                       mapping_params_t& parameters);
+
 std::string map_single(const std::unordered_map<uint64_t, index_pos_t>& ref_index, 
                        const std::vector<minimizer_t>& t_minimizers,
                        const std::unique_ptr<fastaq::FastAQ>& reference, 

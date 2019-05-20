@@ -48,6 +48,7 @@ static struct option long_options[] = {
   {"window_length", required_argument, NULL, 'w'},
   {"frequency", required_argument, NULL, 'f'},
   {"insert_size", required_argument, NULL, 'i'},
+  {"st_deviation", required_argument, NULL, 's'},
   {"threads", required_argument, NULL, 't'},
   {"threshold", required_argument, NULL, 'T'},
   {NULL, no_argument, NULL, 0}
@@ -105,7 +106,10 @@ void help(void) {
          "                             are not taken into account\n"
          "  -i  or  --insert_size    <uint>\n"
          "                             default: 215\n"
-         "                             fragment insert size\n"
+         "                             fragment insert size mean\n"
+         "  -s  or  --st_deviation   <float>\n"
+         "                             default: 10.0\n"
+         "                             fragment insert size standard deviation\n"
          "  -t  or  --threads        <uint>\n"
          "                             default: 3\n"
          "                             number of threads\n"
@@ -153,10 +157,11 @@ int main(int argc, char **argv) {
   parameters.insert_size = 215;
   parameters.threshold = 2;
   bool paired = false;
+  bool set_insert = false;
   uint32_t t = 3;
   std::string cl_flags;
 
-  while ((optchr = getopt_long(argc, argv, "hvpam:M:o:e:b:k:w:f:i:t:T:", long_options, NULL)) != -1) {
+  while ((optchr = getopt_long(argc, argv, "hvpam:M:o:e:b:k:w:f:i:s:t:T:", long_options, NULL)) != -1) {
     cl_flags += "-", cl_flags += optchr, cl_flags += " ";
     if (optarg != nullptr) cl_flags += optarg, cl_flags += " ";
     switch (optchr) {
@@ -213,7 +218,12 @@ int main(int argc, char **argv) {
         break;
       }
       case 'i': {
+        set_insert = true;
         parameters.insert_size = atoi(optarg);
+        break;
+      }
+      case 's': {
+        parameters.sd = atof(optarg);
         break;
       }
       case 't': {
@@ -323,6 +333,13 @@ int main(int argc, char **argv) {
       }
       if (pr1_stats.max - pr1_stats.min > 0 || pr2_stats.max - pr2_stats.min > 0) {
         fprintf(stderr, "[srmapper] warning: Reads are not of fixed size.\n");
+      }
+      if (!set_insert) {
+        infer_insert_size(ref_index, t_minimizers,
+                          reference[0], paired_reads,
+                          parameters);
+        fprintf(stderr, "[srmapper-map] inferred insert size mean, standard deviation: %u, %.2f\n", 
+                parameters.insert_size, parameters.sd);
       }
     }
     std::cout << argv[optind + 1] << " " << argv[optind + 2] << "\n";
