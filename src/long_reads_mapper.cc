@@ -78,6 +78,9 @@ void help(void) {
          "OPTIONS:\n"
          "  -h  or  --help           print help (displayed now) and exit\n"
          "  -v  or  --version        print version info and exit\n"
+         "  -K  or  --kvalue         <int>\n"
+         "                             default: 1000\n"
+         "                             number of bases to take from start and end\n"
          "  -M  or  --match          <int>\n"
          "                             default: 4\n"
          "                             match number\n"
@@ -132,11 +135,12 @@ std::string reverse_complement(const std::string& original, unsigned int pos, un
 
 std::string map_paf(const std::vector<triplet_t>& t_minimizers,
     const std::unordered_map<unsigned int, minimizer_index_t>& ref_index,
-    const std::vector<std::unique_ptr<FastAQ>>& fastaq_objects1,
-    const std::vector<std::unique_ptr<FastAQ>>& fastaq_objects2,
+    const std::vector<std::unique_ptr<FastAQ>>& data_set,
+    const std::vector<std::unique_ptr<FastAQ>>& reference,
     unsigned int k, unsigned int window_length,
     int match, int mismatch, int gap,
-    unsigned int t_begin, unsigned int t_end, int k_value, bool bool_cigar) {
+    unsigned int t_begin, unsigned int t_end, int k_value,
+    bool bool_cigar, unsigned int ref_num) {
 
   std::string paf;
   std::string sam;
@@ -144,12 +148,12 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
   int threshold = 5;
 
   for (unsigned int fobj = t_begin; fobj < t_end; fobj++) {
-    unsigned int sequence_length = fastaq_objects1[fobj]->sequence.size();
+    unsigned int sequence_length = data_set[fobj]->sequence.size();
 
     if(sequence_length < (unsigned) (2 * k_value)) continue; //ovo netreba jer su file-ovi vec filtrirani
 
-    std::vector<minimizer> start_minimizers = brown::minimizers(fastaq_objects1[fobj]->sequence.c_str(), k_value, k, window_length);
-    std::vector<minimizer> end_minimizers = brown::minimizers(fastaq_objects1[fobj]->sequence.substr(sequence_length - k_value - 1, k_value).c_str(), k_value, k, window_length);
+    std::vector<minimizer> start_minimizers = brown::minimizers(data_set[fobj]->sequence.c_str(), k_value, k, window_length);
+    std::vector<minimizer> end_minimizers = brown::minimizers(data_set[fobj]->sequence.substr(sequence_length - k_value - 1, k_value).c_str(), k_value, k, window_length);
 
     std::vector<minimizer_hit_t> start_hits_same;
     std::vector<minimizer_hit_t> start_hits_rev;
@@ -164,7 +168,7 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
     std::unordered_map<unsigned int, int> end_hits_region = parse_hits_map(end_hits_same, k_value);
     std::unordered_map<unsigned int, int> end_hits_region_rev = parse_hits_map(end_hits_rev, k_value);
 
-    int region_size = sequence_length / k_value;    
+    unsigned int region_size = sequence_length / k_value;    
 
     std::vector<region_hits> start_hits_top = find_top_3(start_hits_region, threshold);
     std::vector<region_hits> start_hits_top_rev = find_top_3(start_hits_region_rev, threshold);
@@ -189,7 +193,7 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
 
       //ako nema pocetka ni kraja preskoci
       if(!bool_start && !bool_end){
-        // printf("%s PRESKACEM, nema niceg\n", fastaq_objects1[fobj]->name.c_str());
+        // printf("%s PRESKACEM, nema niceg\n", data_set[fobj]->name.c_str());
         continue;
       }
       
@@ -202,7 +206,7 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
         for(int i = 1; i <= stop + 1; i++){
           end_hits_same.clear();
           end_hits_rev.clear();
-          end_minimizers = brown::minimizers(fastaq_objects1[fobj]->sequence.substr(sequence_length - (i * k_value) - 1, k_value).c_str(), k_value, k, window_length);
+          end_minimizers = brown::minimizers(data_set[fobj]->sequence.substr(sequence_length - (i * k_value) - 1, k_value).c_str(), k_value, k, window_length);
           find_minimizer_hits(ref_index, t_minimizers, end_minimizers, end_hits_same, end_hits_rev);
           end_hits_region = parse_hits_map(end_hits_same, k_value);
           end_hits_region_rev = parse_hits_map(end_hits_rev, k_value);
@@ -219,7 +223,7 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
 
         //ako nije nista nadeno preskoci
         if(!bool_found_something){
-          // printf("%s PRESKACEM, ima pocetak, ali nije nadeno\n", fastaq_objects1[fobj]->name.c_str());
+          // printf("%s PRESKACEM, ima pocetak, ali nije nadeno\n", data_set[fobj]->name.c_str());
           continue;
         }
         ispis = true;  //za testiranje
@@ -234,7 +238,7 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
         for(int i =  0; i <= stop; i++){
           start_hits_same.clear();
           start_hits_rev.clear();
-          start_minimizers = brown::minimizers(fastaq_objects1[fobj]->sequence.substr((i * k_value), k_value).c_str(), k_value, k, window_length);
+          start_minimizers = brown::minimizers(data_set[fobj]->sequence.substr((i * k_value), k_value).c_str(), k_value, k, window_length);
           find_minimizer_hits(ref_index, t_minimizers, start_minimizers, start_hits_same, start_hits_rev);
           start_hits_region = parse_hits_map(start_hits_same, k_value);
           start_hits_region_rev = parse_hits_map(start_hits_rev, k_value);
@@ -251,7 +255,7 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
 
         //ako nije nista nadeno preskoci
         if(!bool_found_something){
-          // printf("%s PRESKACEM, ima kraj, ali nije nadeno\n", fastaq_objects1[fobj]->name.c_str());
+          // printf("%s PRESKACEM, ima kraj, ali nije nadeno\n", data_set[fobj]->name.c_str());
           continue;
         }
         ispis = true; //za testiranje
@@ -299,12 +303,12 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
       qs = (uint8_t*)malloc(ql);
 
       if(!rev){
-        for (int i = 0; i < tl; ++i) ts[i] = c[(uint8_t)fastaq_objects1[fobj]->sequence[i + ref_start]]; // encode to 0/1/2/3
+        for (int i = 0; i < tl; ++i) ts[i] = c[(uint8_t)data_set[fobj]->sequence[i + ref_start]]; // encode to 0/1/2/3
       }else{
-        for (int i = 0; i < tl; ++i) ts[i] = (uint8_t)3 - c[(uint8_t)fastaq_objects1[fobj]->sequence[i + ref_start]]; // encode to 0/1/2/3
+        for (int i = 0; i < tl; ++i) ts[i] = (uint8_t)3 - c[(uint8_t)data_set[fobj]->sequence[i + ref_start]]; // encode to 0/1/2/3
       }
       
-      for (int i = 0; i < ql; ++i) qs[i] = c[(uint8_t)fastaq_objects2[0]->sequence[i + start]]; // encode to 0/1/2/3
+      for (int i = 0; i < ql; ++i) qs[i] = c[(uint8_t)reference[ref_num]->sequence[i + start]]; // encode to 0/1/2/3
       
       ksw_extz2_sse(0, ql, qs, tl, ts, 5, mat, 2, 1, -1, -1, 0, 0, &ez);
 
@@ -317,14 +321,14 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
 
     std::string seq;
     if(rev){
-      seq = reverse_complement(fastaq_objects1[fobj]->sequence, start, end - start);
+      seq = reverse_complement(data_set[fobj]->sequence, start, end - start);
     }else{
-      seq = fastaq_objects1[fobj]->sequence.substr(start, end - start);
+      seq = data_set[fobj]->sequence.substr(start, end - start);
     }
 
-    sam += fastaq_objects1[fobj]->name + "\t" +
+    sam += data_set[fobj]->name + "\t" +
           "??" + "\t" + //FLAG
-          fastaq_objects2[0]->name + "\t" +
+          reference[ref_num]->name + "\t" +
           std::to_string(ref_start + 1) + "\t" +
           "255" + "\t" + //MAPQ
           cigar + "\t" +
@@ -341,12 +345,12 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
     // }else{
     //   reverse = "+";
     // }
-    // paf = paf + fastaq_objects1[fobj]->name.c_str() + "\t" + std::to_string(sequence_length) + "\t" + std::to_string(start) + "\t" + std::to_string(end) + "\t" + reverse + "\t" + std::to_string(ref_start) + "\t" + std::to_string(ref_end) + "\n";
+    // paf = paf + data_set[fobj]->name.c_str() + "\t" + std::to_string(sequence_length) + "\t" + std::to_string(start) + "\t" + std::to_string(end) + "\t" + reverse + "\t" + std::to_string(ref_start) + "\t" + std::to_string(ref_end) + "\n";
 
 
     //za tesitranje kad nade samo jedan kraj
     // if(ispis){
-      // printf("%s\t%u\t%u\t%u\t%c\t%u\t%u\n",fastaq_objects1[fobj]->name.c_str(), sequence_length, start, end, rev ? '-' : '+', ref_start, ref_end);
+      // printf("%s\t%u\t%u\t%u\t%c\t%u\t%u\n",data_set[fobj]->name.c_str(), sequence_length, start, end, rev ? '-' : '+', ref_start, ref_end);
       // printf("%d\t%lu\t%lu", region_size, starting_region, ending_region);
       // top3Info(start_hits_top, start_hits_top_rev, end_hits_top, end_hits_top_rev);
     // } 
@@ -368,8 +372,9 @@ int main (int argc, char **argv) {
   int t = 2;
   float f = 0.001f;
   bool bool_cigar = false;
+  int k_value = 1000;
 
-  while ((optchr = getopt_long(argc, argv, "hvm:g:M:k:w:t:c", long_options, NULL)) != -1) {
+  while ((optchr = getopt_long(argc, argv, "hvm:g:M:k:w:t:cK:", long_options, NULL)) != -1) {
     switch (optchr) {
       case 'h': {
         help();
@@ -378,6 +383,14 @@ int main (int argc, char **argv) {
       case 'v': {
         version();
         exit(0);
+      }
+      case 'K': {
+        k_value = atoi(optarg);
+        if(k_value <= 0){
+          fprintf(stderr, "[mapper] error: kvalue must be positive!\n"); 
+          exit(1); 
+        }
+        break;
       }
       case 'M': {
         match = atoi(optarg);
@@ -405,7 +418,7 @@ int main (int argc, char **argv) {
       }
       case 't': {
         t = atoi(optarg);
-        if (t < 1) {
+        if(t < 1){
           fprintf(stderr, "[mapper] error: t must be positive!\n"); 
           exit(1); 
         }
@@ -448,53 +461,75 @@ int main (int argc, char **argv) {
   fprintf(stderr, " Done!\n\nParsing files...");
 
   // Parse files
-  std::vector<std::unique_ptr<FastAQ>> fastaq_objects1;
-  std::vector<std::unique_ptr<FastAQ>> fastaq_objects2;
+  std::vector<std::unique_ptr<FastAQ>> data_set;
+  std::vector<std::unique_ptr<FastAQ>> reference;
 
-  FastAQ::parse(fastaq_objects1, file1, file1_format);
-  FastAQ::parse(fastaq_objects2, file2, file2_format);
+  FastAQ::parse(data_set, file1, file1_format);
+  FastAQ::parse(reference, file2, file2_format);
 
   fprintf(stderr, " Done!\n");
 
   // Print file stats
-  fprintf(stderr, "\n");  
-  // FastAQ::print_statistics(fastaq_objects1, file1);
-  // FastAQ::print_statistics(fastaq_objects2, file2);
+  // FastAQ::print_statistics(data_set, file1);
+  // FastAQ::print_statistics(reference, file2);
 
-  int k_value = 1000;
+  for(unsigned int ref_num = 0; ref_num < reference.size(); ref_num++){
 
-  std::vector<triplet_t> t_minimizers = brown::minimizers(
-      fastaq_objects2[0]->sequence.c_str(), fastaq_objects2[0]->sequence.size(), k, window_length);
+    // Parallelized version of reference minimizers search
+    std::shared_ptr<thread_pool::ThreadPool> thread_pool_ref = thread_pool::createThreadPool(t);
+    std::vector<std::future<std::vector<triplet_t>>> thread_futures_ref;
 
-  prep_ref(t_minimizers, f);
+    for (int tasks = 0; tasks < t - 1; ++tasks) {
+      thread_futures_ref.emplace_back(thread_pool_ref->submit_task(brown::minimizers,
+          reference[ref_num]->sequence.c_str() + tasks * reference[ref_num]->sequence.size() / t,
+          reference[ref_num]->sequence.size() / t - 1 + window_length + k - 1,
+          k, window_length));
+    }
+    thread_futures_ref.emplace_back(thread_pool_ref->submit_task(brown::minimizers,
+          reference[ref_num]->sequence.c_str() + (t - 1) * reference[ref_num]->sequence.size() / t,
+          reference[ref_num]->sequence.size() - (t - 1) * reference[ref_num]->sequence.size() / t,
+          k, window_length));
 
-  std::unordered_map<unsigned int, minimizer_index_t> ref_index = index_ref(t_minimizers);
+    std::vector<triplet_t> t_minimizers;
+    for (int i = 0; i < t; ++i) {
+      thread_futures_ref[i].wait();
+      unsigned int offset = i * reference[ref_num]->sequence.size() / t;
+      for (auto& el : thread_futures_ref[i].get()) {
+        std::get<1>(el) += offset;
+        t_minimizers.push_back(el);
+      }
+    }
 
-  //prvih 250 - zbog testiranja
+    // Regular version of reference minimizers search
+    // std::vector<triplet_t> t_minimizers = brown::minimizers(
+    //     reference[ref_num]->sequence.c_str(), reference[ref_num]->sequence.size(), k, window_length);
 
-  // std::cout << map_paf(std::ref(t_minimizers), std::ref(ref_index), std::ref(fastaq_objects1), std::ref(fastaq_objects2),
-  //     k, window_length, match, mismatch, gap, 0, 250, k_value, bool_cigar);
+    prep_ref(t_minimizers, f);
+    std::unordered_map<unsigned int, minimizer_index_t> ref_index = index_ref(t_minimizers);
+
+    //prvih 250 - zbog testiranja
+    // std::cout << map_paf(std::ref(t_minimizers), std::ref(ref_index), std::ref(data_set), std::ref(reference),
+    //     k, window_length, match, mismatch, gap, 0, 250, k_value, bool_cigar, ref_num);
 
 
-  // kod za visedretvenost
+    // kod za visedretvenost
+    std::shared_ptr<thread_pool::ThreadPool> thread_pool = thread_pool::createThreadPool(t);
 
-  std::shared_ptr<thread_pool::ThreadPool> thread_pool = thread_pool::createThreadPool(t);
+    std::vector<std::future<std::string>> thread_futures;
 
-  std::vector<std::future<std::string>> thread_futures;
-
-  for (unsigned int tasks = 0; tasks < t - 1; ++tasks) {
+    for (int tasks = 0; tasks < t - 1; ++tasks) {
+      thread_futures.emplace_back(thread_pool->submit_task(map_paf, std::ref(t_minimizers), std::ref(ref_index),
+        std::ref(data_set), std::ref(reference),
+        k, window_length, match, mismatch, gap, tasks * data_set.size() / t, (tasks + 1) * data_set.size() / t, k_value, bool_cigar, ref_num));  
+    }
     thread_futures.emplace_back(thread_pool->submit_task(map_paf, std::ref(t_minimizers), std::ref(ref_index),
-      std::ref(fastaq_objects1), std::ref(fastaq_objects2),
-      k, window_length, match, mismatch, gap, tasks * fastaq_objects1.size() / t, (tasks + 1) * fastaq_objects1.size() / t, k_value, bool_cigar));  
+        std::ref(data_set), std::ref(reference),
+        k, window_length, match, mismatch, gap, (t - 1) * data_set.size() / t, data_set.size(), k_value, bool_cigar, ref_num));
+    
+    for (auto& it : thread_futures) {
+      it.wait();
+      std::cout << it.get();
+    } 
   }
-  thread_futures.emplace_back(thread_pool->submit_task(map_paf, std::ref(t_minimizers), std::ref(ref_index),
-      std::ref(fastaq_objects1), std::ref(fastaq_objects2),
-      k, window_length, match, mismatch, gap, (t - 1) * fastaq_objects1.size() / t, fastaq_objects1.size(), k_value, bool_cigar));
-  
-  for (auto& it : thread_futures) {
-    it.wait();
-    std::cout << it.get();
-  }
-
   return 0;
 }
