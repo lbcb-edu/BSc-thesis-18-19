@@ -17,7 +17,7 @@
 #define DELETE 2
 
 
-namespace OSALG {
+namespace OSALG_vector {
 
 	std::vector<int> u{ 4, 2 };
 	std::vector<int> v{ 1, 13 };
@@ -101,8 +101,6 @@ namespace OSALG {
 			for (int j = 0; j <= seq2.length(); ++j) {
 				if (i == 0 && j == 0) continue;
 				calculate_matrix_element(mat, i, j, seq1, seq2);
-				if(i == 54 && j == 64)
-					printf("mat %d %d %d %d %d mat\n", mat[i][j].f_arr[0], mat[i][j].f_arr[1], mat[i][j].f_arr[2], mat[i][j].f_arr[3], mat[i][j].d_val);
 			}
 		}
 

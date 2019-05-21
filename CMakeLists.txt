@@ -22,6 +22,7 @@ include_directories("${PROJECT_BINARY_DIR}")
 add_subdirectory(vendor/bioparser EXCLUDE_FROM_ALL)
 
 add_library(OSALG_lib ${PROJECT_SOURCE_DIR}/src/OSALG_lib.cpp)
+add_library(OSALG_lib_vector ${PROJECT_SOURCE_DIR}/src/OSALG_lib_vector.cpp)
 
 add_executable(OptSeqAlignmentLongGaps src/OptSeqAlignmentLongGaps.cpp)
-target_link_libraries(OptSeqAlignmentLongGaps bioparser OSALG_lib)
+target_link_libraries(OptSeqAlignmentLongGaps bioparser OSALG_lib OSALG_lib_vector)

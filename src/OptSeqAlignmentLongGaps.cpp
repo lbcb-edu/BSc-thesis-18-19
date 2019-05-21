@@ -4,10 +4,12 @@
 #include <vector>
 #include <iostream>
 #include <chrono>
+#include <cstring>
 
 #include "bioparser/bioparser.hpp"
 
 #include "OSALG_lib.h"
+#include "OSALG_lib_vector.h"
 
 #include "OptSeqAlignmentLongGapsConfig.h"
 
@@ -15,7 +17,9 @@ struct option options[] = {
 	{"version", no_argument, 0, 'v'},
 	{"help", no_argument, 0, 'h'},
 	{"extended", no_argument, 0, 'e'},
-	{"index_mode", no_argument, 0, 'i'}
+	{"index_mode", no_argument, 0, 'i'},
+	{"vector", no_argument, 0, 0},
+	{0, 0, 0, 0}
 };
 
 class FASTAQEntity {
@@ -68,6 +72,7 @@ void help() {
         	"	-v, --version  -  prints program version\n"
 		"	-e, --extended - constructed CIGARS will include \'=\'(match) and \'X\'(mismatch) characters instead of \'M\'\n"
 		"	-i, --indexed_mode - aligns query sequence at some index with the reference sequence at the same index\n"
+		"	--vector - enables vectorization mode"
 		"==================\n"
 		"\n"
 	);
@@ -111,9 +116,13 @@ std::vector<std::unique_ptr<FASTAQEntity>> readFASTAFile(std::string const &file
 	return fasta_objects;
 }
 
-void generateOutput(std::unique_ptr<FASTAQEntity> const &ref, std::unique_ptr<FASTAQEntity> const &query, bool extended_cigar) {
+void generateOutput(std::unique_ptr<FASTAQEntity> const &ref, std::unique_ptr<FASTAQEntity> const &query, bool extended_cigar, bool vector_mode) {
 	std::string cigar;
-	OSALG::long_gaps_alignment(ref->sequence, query->sequence, cigar, extended_cigar);
+	if(vector_mode) {
+		OSALG_vector::long_gaps_alignment(ref->sequence, query->sequence, cigar, extended_cigar);
+	} else {
+		OSALG::long_gaps_alignment(ref->sequence, query->sequence, cigar, extended_cigar);
+	}
 
 	printf("----------------------\n");
 	printf("reference: %s\n", (ref->name).c_str());
@@ -132,10 +141,17 @@ int main(int argc, char **argv) {
 	int option_index = 0;
 	bool extended_cigar = false;
 	bool indexed_mode = false;
+	bool vector_mode = false;
 	while((optchr = getopt_long(argc, argv, "hvei", options, &option_index)) != -1) {
 		switch(optchr) {
 		
 			case 0:
+				if(options[option_index].flag != 0)
+					break;
+
+				if(strcmp(options[option_index].name, "vector") == 0)
+					vector_mode = true;
+
 				break;
 			case 'h':
 				help();
@@ -189,7 +205,7 @@ int main(int argc, char **argv) {
 	if(!indexed_mode) {
 		for(auto const &ref : ref_entries) {
 			for(auto const &query : query_entries) {
-				generateOutput(ref, query, extended_cigar);
+				generateOutput(ref, query, extended_cigar, vector_mode);
 			}
 		}
 	} else {
@@ -197,7 +213,7 @@ int main(int argc, char **argv) {
 
 		for(int i = 0; i < max_ind; ++i) {
 			printf("INDEX: %d\n", (i+1));
-			generateOutput(ref_entries[i], query_entries[i], extended_cigar);
+			generateOutput(ref_entries[i], query_entries[i], extended_cigar, vector_mode);
 		}
 	}
 
