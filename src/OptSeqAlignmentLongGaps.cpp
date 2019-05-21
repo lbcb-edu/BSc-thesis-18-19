@@ -72,7 +72,7 @@ void help() {
         	"	-v, --version  -  prints program version\n"
 		"	-e, --extended - constructed CIGARS will include \'=\'(match) and \'X\'(mismatch) characters instead of \'M\'\n"
 		"	-i, --indexed_mode - aligns query sequence at some index with the reference sequence at the same index\n"
-		"	--vector - enables vectorization mode"
+		"	--vector - enables vectorization mode\n"
 		"==================\n"
 		"\n"
 	);
