@@ -400,10 +400,6 @@ int main(int argc, char **argv) {
            reference[0]->name.c_str(), reference[0]->sequence.size(), 
            argv[0], cl_flags.c_str(), 
            argv[optind], argv[optind + 1], argv[optind + 2]);
-    // std::cout << "@HD\tVN:1.6\n"
-    //              "@SQ\tSN:" << reference[0]->name << "\tLN:" << reference[0]->sequence.size() << "\n"
-    //              "@PG\tID:srmapper\tPN:srmapper\tCL:" << argv[0] << " " << cl_flags << argv[optind] << " ";
-    // std::cout << argv[optind + 1] << " " << argv[optind + 2] << "\n";
 
     uint32_t chunk_num = 1;
     while (true) {
@@ -452,7 +448,6 @@ int main(int argc, char **argv) {
       for (auto& it : thread_futures) {
         it.wait();
         printf("%s", it.get().c_str());
-        // std::cout << it.get();
       }
 
       auto c_end = std::chrono::steady_clock::now();
@@ -483,10 +478,6 @@ int main(int argc, char **argv) {
            reference[0]->name.c_str(), reference[0]->sequence.size(), 
            argv[0], cl_flags.c_str(), 
            argv[optind], argv[optind + 1]);
-    // std::cout << "@HD\tVN:1.6\n"
-    //              "@SQ\tSN:" << reference[0]->name << "\tLN:" << reference[0]->sequence.size() << "\n"
-    //              "@PG\tID:srmapper\tPN:srmapper\tCL:" << argv[0] << " " << cl_flags << argv[optind] << " ";
-    // std::cout << argv[optind + 1] << "\n";
 
     uint32_t chunk_num = 1;
     while(true) {
@@ -515,7 +506,6 @@ int main(int argc, char **argv) {
       for (auto& it : thread_futures) {
         it.wait();
         printf("%s", it.get().c_str());
-        // std::cout << it.get();
       }
 
       auto c_end = std::chrono::steady_clock::now();
