@@ -16,8 +16,6 @@ set(EXEC_FILES src/srmapper.cc src/brown_minimizers.cc src/ksw2_extz2_sse.c
                src/index.cc src/map.cc src/radixsort.cc src/region.cc
                src/revcomp.cc src/sam.cc)
 
-option(mapper_build_tests "Build mapper unit tests" OFF)
-
 configure_file(
   "${PROJECT_SOURCE_DIR}/src/srmapper.hpp.in"
   "${PROJECT_BINARY_DIR}/srmapper.hpp"
@@ -30,13 +28,6 @@ include_directories("${PROJECT_BINARY_DIR}")
 
 add_subdirectory(vendor/bioparser EXCLUDE_FROM_ALL)
 add_subdirectory(vendor/thread_pool EXCLUDE_FROM_ALL)
-
-if (mapper_build_tests)
-  include_directories(${PROJECT_SOURCE_DIR}/src)
-  add_executable(srmapper_unittest test/srmapper_unittest.cc)
-  add_subdirectory(vendor/googletest/googletest EXCLUDE_FROM_ALL)
-  target_link_libraries(srmapper_unittest gtest_main)
-endif (mapper_build_tests)
 
 add_executable(srmapper ${EXEC_FILES})
 target_link_libraries(srmapper brown_minimizers bioparser thread_pool pthread)

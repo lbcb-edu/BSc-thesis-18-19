@@ -22,8 +22,12 @@
 // Return: size of clipping; if negative, sequence should be rejected
 int32_t clip(const std::string& seq, const uint32_t k, const uint32_t w) {
   std::size_t found = seq.find("NN", 10);
-  if (found == std::string::npos) return 0;
-  if (found < (w + k - 1)) return -1;
+  if (found == std::string::npos) {
+    return 0;
+  }
+  if (found < (w + k - 1)) {
+    return -1;
+  }
   return seq.size() - found;
 }
 
@@ -39,29 +43,38 @@ std::vector<mapping_t> process_single(const std::unordered_map<uint64_t, index_p
                                       const std::vector<minimizer_t>& t_minimizers, const std::unique_ptr<fastaq::FastAQ>& reference, 
                                       const std::unique_ptr<fastaq::FastAQ>& read, const mapping_params_t& parameters) {
   std::vector<mapping_t> mappings;
+
   int32_t clipped = clip(read->sequence, parameters.k, parameters.w);
   if (clipped < 0) {
-    // sam += unmapped_sam(read->name, read->sequence, read->quality, 0, 0, 0);
     return mappings;
   }
+
   std::vector<minimizer_t> q_minimizers = brown::minimizers(read->sequence.c_str(), read->sequence.size() - clipped,
                                                             parameters.k, parameters.w);
+
   split_hits_t hits;
   find_minimizer_hits(hits.first, hits.second, ref_index, t_minimizers, q_minimizers);
+
   radixsort(hits.first);
   radixsort(hits.second);
+
   std::pair<bin_t, bin_t> candidates(extract_candidates(hits.first, parameters.threshold, read->sequence.size()),
                                      extract_candidates(hits.second, parameters.threshold, read->sequence.size()));
+
   if (candidates.first.size() == 0 && candidates.second.size() == 0) {
-    // sam += unmapped_sam(read->name, read->sequence, read->quality, 0, 0, 0);
     return mappings;
   }
+
   std::unordered_set<uint32_t> processed;
   for (auto& bin : candidates.first) {
     region_t reg = find_region(bin.second);
     expand_region(reg, read->sequence.size(), parameters.k, reference->sequence.size() - 1);
-    if (processed.find(std::get<1>(reg.first)) != processed.end()) continue;
+
+    if (processed.find(std::get<1>(reg.first)) != processed.end()) {
+      continue;
+    }
     processed.insert(std::get<1>(reg.first));
+
     mappings.emplace_back(single_mapping(read->name, read->sequence, read->quality,
                                          reference->name, reference->sequence, reg, 
                                          parameters, clipped));
@@ -69,19 +82,26 @@ std::vector<mapping_t> process_single(const std::unordered_map<uint64_t, index_p
   for (auto& bin : candidates.second) {
     region_t reg = find_region(bin.second);
     expand_region(reg, read->sequence.size(), parameters.k, reference->sequence.size() - 1);
-    if (processed.find(std::get<1>(reg.first)) != processed.end()) continue;
+
+    if (processed.find(std::get<1>(reg.first)) != processed.end()) {
+      continue;
+    }
     processed.insert(std::get<1>(reg.first));
+
     std::string rc = reverse_complement(read->sequence, 0, read->sequence.size());
     std::string rq = std::string(read->quality.rbegin(), read->quality.rend());
+
     mappings.emplace_back(single_mapping(read->name, rc, rq,
                                          reference->name, reference->sequence, reg, 
                                          parameters, clipped));
   }
+
   std::sort(mappings.begin(), mappings.end(), 
             [] (const mapping_t& a, const mapping_t& b) {
               return a.mapq > b.mapq;
             }
   );
+
   uint32_t stop = parameters.all ? mappings.size() : 1;
   for (uint32_t i = 0; i < stop; ++i) {
     mappings[i].mapq /= mappings.size();
@@ -89,11 +109,12 @@ std::vector<mapping_t> process_single(const std::unordered_map<uint64_t, index_p
       mappings[i].flag |= 0x100;
       mappings[i].mapq = 0;
     }
-    // sam += sam_format(mappings[i]);
   }
+
   if (!parameters.all) {
     mappings.erase(mappings.begin() + 1, mappings.end());
   }
+
   return mappings;
 }
 
@@ -110,17 +131,22 @@ void process_pairs(std::vector<std::pair<mapping_t, mapping_t>>& mappings,
     const std::unique_ptr<fastaq::FastAQ>& first, const std::unique_ptr<fastaq::FastAQ>& second,
     const mapping_params_t& parameters, const int32_t clipped1, const int32_t clipped2) {
   std::unordered_set<uint32_t> processed;
+
   for (uint32_t j = 0; j < checked.first.size(); ++j) {
     std::pair<region_t, region_t> region_pair(find_region(checked.first[j]),
                                               find_region(checked.second[j]));
+
     expand_region(region_pair.first, first->sequence.size(), 
                   parameters.k, reference->sequence.size() - 1);
     expand_region(region_pair.second, second->sequence.size(), 
                   parameters.k, reference->sequence.size() - 1);
+
     if (processed.find(std::get<1>(region_pair.first.first)) != processed.end()) continue;
     processed.insert(std::get<1>(region_pair.first.first));
+
     std::string rc;
     std::string rq;
+
     std::string* query1 = std::get<2>(region_pair.first.first)
                           ? &(rc = reverse_complement(first->sequence, 0, first->sequence.size()))
                           : &(first->sequence);
@@ -133,6 +159,7 @@ void process_pairs(std::vector<std::pair<mapping_t, mapping_t>>& mappings,
     std::string* quality2 = std::get<2>(region_pair.second.first)
                             ? &(rq = std::string(second->quality.rbegin(), second->quality.rend()))
                             : &(second->quality);
+
     mappings.emplace_back(
       pair_mapping(
         first->name,
@@ -151,8 +178,10 @@ void infer_insert_size(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
   mapping_params_t temp = parameters;
   temp.all = false;
   temp.band = -1;
+
   std::vector<uint32_t> ins;
   ins.reserve(2000);
+
   for (uint32_t i = 0; ins.size() < 2000; ++i) {
     std::vector<mapping_t> ms1 = process_single(ref_index, t_minimizers, reference, paired_reads.first[i], temp);
     std::vector<mapping_t> ms2 = process_single(ref_index, t_minimizers, reference, paired_reads.second[i], temp);
@@ -162,7 +191,9 @@ void infer_insert_size(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
                     : (ms1[0].pos + paired_reads.first[i]->sequence.size()) - ms2[0].pos);
     }
   }
+
   std::sort(ins.begin(), ins.end());
+
   uint32_t sum = 0;
   uint32_t count = 0;
   for (uint32_t i = 0; i < ins.size(); ++i) {
@@ -173,6 +204,7 @@ void infer_insert_size(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
         }
   }
   parameters.insert_size = (uint32_t)round((float)sum / count);
+
   sum = 0;
   for (uint32_t i = 0; i < ins.size(); ++i) {
     if ((ins[ins.size() / 4] - 2 * (ins[ins.size() * 3 / 4] - ins[ins.size() / 4])) < ins[i]
@@ -198,8 +230,10 @@ std::string map_single(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
                        const std::vector<std::unique_ptr<fastaq::FastAQ>>& reads, const mapping_params_t& parameters,
                        uint32_t t_start, uint32_t t_end) {
   std::string sam;
+
   for (uint32_t i = t_start; i < t_end; ++i) {
     std::vector<mapping_t> ms = process_single(ref_index, t_minimizers, reference, reads[i], parameters);
+
     if (ms.size()) {
       for (const auto& m : ms) {
         sam += sam_format(m);
@@ -208,6 +242,7 @@ std::string map_single(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
       sam += unmapped_sam(reads[i]->name, reads[i]->sequence, reads[i]->quality, 0, 0, 0);
     }
   }
+
   return sam;
 }
 
@@ -225,9 +260,11 @@ std::string map_as_single(const std::unordered_map<uint64_t, index_pos_t>& ref_i
                           const std::unique_ptr<fastaq::FastAQ>& reference, const paired_reads_t& paired_reads,
                           const mapping_params_t& parameters, uint32_t t_start, uint32_t t_end) {
   std::string sam;
+
   for (uint32_t i = t_start; i < t_end; ++i) {
     std::vector<mapping_t> ms1 = process_single(ref_index, t_minimizers, reference, paired_reads.first[i], parameters);
     std::vector<mapping_t> ms2 = process_single(ref_index, t_minimizers, reference, paired_reads.second[i], parameters);
+
     if (ms1.size()) {
       for (const auto& m : ms1) {
         sam += sam_format(m);
@@ -243,6 +280,7 @@ std::string map_as_single(const std::unordered_map<uint64_t, index_pos_t>& ref_i
       sam += unmapped_sam(paired_reads.second[i]->name, paired_reads.second[i]->sequence, paired_reads.second[i]->quality, 0, 0, 0);
     }
   }
+
   return sam;
 }
 
@@ -260,6 +298,7 @@ std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
                        const std::unique_ptr<fastaq::FastAQ>& reference, const paired_reads_t& paired_reads,
                        const mapping_params_t& parameters, uint32_t t_start, uint32_t t_end) {
   std::string sam;
+
   for (uint32_t i = t_start; i < t_end; ++i) {
     int32_t clipped1 = clip(paired_reads.first[i]->sequence, parameters.k, parameters.w);
     int32_t clipped2 = clip(paired_reads.second[i]->sequence, parameters.k, parameters.w);
@@ -270,12 +309,14 @@ std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
                             paired_reads.second[i]->quality, 1, 0, 1);
       continue;
     }
+
     paired_minimizers_t p_minimizers(brown::minimizers(paired_reads.first[i]->sequence.c_str(),
                                                        paired_reads.first[i]->sequence.size() - clipped1,
                                                        parameters.k, parameters.w),
                                      brown::minimizers(paired_reads.second[i]->sequence.c_str(),
                                                        paired_reads.second[i]->sequence.size() - clipped2,
                                                        parameters.k, parameters.w));
+
     split_hits_t hits1;
     split_hits_t hits2;
     find_minimizer_hits(hits1.first, hits1.second, ref_index, t_minimizers, p_minimizers.first);
@@ -292,6 +333,7 @@ std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
     std::pair<bin_t, bin_t> candidates2(
         extract_candidates(hits1.second, parameters.threshold, paired_reads.first[i]->sequence.size()),
         extract_candidates(hits2.first, parameters.threshold, paired_reads.second[i]->sequence.size()));
+
     paired_checked_t checked1 = check_pairing(candidates1, parameters.insert_size,
                                               paired_reads.second[i]->sequence.size());
     paired_checked_t checked2 = check_pairing(candidates2, parameters.insert_size,
@@ -300,6 +342,7 @@ std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
     std::vector<std::pair<mapping_t, mapping_t>> mappings;
     process_pairs(mappings, checked1, reference, paired_reads.first[i], paired_reads.second[i], parameters, clipped1, clipped2);
     process_pairs(mappings, checked2, reference, paired_reads.first[i], paired_reads.second[i], parameters, clipped1, clipped2);
+
     if (mappings.size() == 0) {
       sam += unmapped_sam(paired_reads.first[i]->name, paired_reads.first[i]->sequence,
                           paired_reads.first[i]->quality, 1, 1, 0)
@@ -307,28 +350,35 @@ std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
                             paired_reads.second[i]->quality, 1, 0, 1);
       continue;
     }
+
     std::sort(mappings.begin(), mappings.end(), 
               [] (const std::pair<mapping_t, mapping_t>& a, 
                   const std::pair<mapping_t, mapping_t>& b) {
                 return a.first.mapq + a.second.mapq > b.first.mapq + b.second.mapq;
               }
     );
+
     std::string sam1;
     std::string sam2;
+
     uint32_t stop = parameters.all ? mappings.size() : 1;
     for (uint32_t j = 0; j < stop; j+=2) {
       mappings[j].first.mapq /= mappings.size();
       mappings[j].second.mapq /= mappings.size();
+
       if (j) {
         mappings[j].first.flag |= 0x100;
         mappings[j].second.flag |= 0x100;
         mappings[j].first.mapq = 0;
         mappings[j].second.mapq = 0;
       }
+      
       sam1 += sam_format(mappings[j].first);
       sam2 += sam_format(mappings[j].second);
     }
+
     sam += sam1 + sam2;
   }
+
   return sam;
 }

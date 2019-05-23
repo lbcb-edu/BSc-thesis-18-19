@@ -48,20 +48,24 @@ bin_t extract_candidates(const std::vector<minimizer_hit_t>& hits, const uint32_
   std::vector<minimizer_hit_t> temp_n;
   uint32_t current = 0;
   uint32_t next = 0;
+
   for (uint32_t i = 0; i < hits.size(); ++i) {
     if (std::get<1>(hits[i]) / region_size == current) {
       temp_c.push_back(hits[i]);
       continue;
     }
+
     if (std::get<1>(hits[i]) / region_size == current + 1) {
       next = current + 1;
       temp_c.push_back(hits[i]);
       temp_n.push_back(hits[i]);
       continue;
     }
+
     if (temp_c.size() >= threshold) {
       candidates[current] = std::move(temp_c);
     }
+
     if (next == current + 1) {
       current = next;
       temp_c = std::move(temp_n);
@@ -72,9 +76,11 @@ bin_t extract_candidates(const std::vector<minimizer_hit_t>& hits, const uint32_
       temp_c.push_back(hits[i]);
     }
   }
+
   if (temp_c.size() >= threshold) {
     candidates[current] = std::move(temp_c);
   }
+
   return candidates;
 }
 
@@ -89,8 +95,10 @@ bin_t extract_candidates(const std::vector<minimizer_hit_t>& hits, const uint32_
 paired_checked_t check_pairing(std::pair<bin_t, bin_t>& candidates, const uint32_t insert_size,
                                const uint32_t read_size) {
   paired_checked_t checked;
+
   for (const auto& bin : candidates.first) {
     bin_t::const_iterator found;
+
     if (!std::get<2>(bin.second[0])) {
       if ((found = candidates.second.find(bin.first + ((insert_size - read_size) / read_size))) != candidates.second.end()
           || (found = candidates.second.find(bin.first + ((insert_size - read_size) / read_size) - 1)) != candidates.second.end()
@@ -107,6 +115,7 @@ paired_checked_t check_pairing(std::pair<bin_t, bin_t>& candidates, const uint32
       }
     }
   }
+
   return checked;
 }
 
@@ -158,12 +167,15 @@ region_t find_region(std::vector<minimizer_hit_t>& hits) {
       }
     }
   }
+
   region_t region = lis[len - 1];
+
   if (std::get<2>(region.first) == 1) {
     uint32_t temp = std::get<0>(region.first);
     std::get<0>(region.first) = std::get<0>(region.second);
     std::get<0>(region.second) = temp;
   }
+
   return region; 
 }
 
@@ -184,6 +196,7 @@ void expand_region(region_t& reg, uint32_t read_size, uint32_t k, uint32_t max_s
     std::get<1>(reg.second) += max_size < std::get<1>(reg.second) + std::get<0>(reg.first) + k 
                                ? max_size - std::get<1>(reg.second) - 1 : std::get<0>(reg.first) + k;
   }
+  
   std::get<0>(reg.first) = 0;
   std::get<0>(reg.second) = read_size - 1;
 }

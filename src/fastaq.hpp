@@ -24,7 +24,7 @@ public:
 
   FastAQ(
     const char* name, uint32_t name_length,
-    const char* sequence, uint32_t sequence_length) : FastAQ(name, name_length, sequence, sequence_length, "", 0){}
+    const char* sequence, uint32_t sequence_length) : FastAQ(name, name_length, sequence, sequence_length, "*", 0){}
 
   FastAQ(
     const char* name, uint32_t name_length,
@@ -34,18 +34,6 @@ public:
       this->sequence = {sequence, sequence_length};
       this->quality = {quality, quality_length};
   }
-
-  static void parse(
-    std::vector<std::unique_ptr<FastAQ>> &fastaq_objects,
-    const std::string file, const uint32_t file_format) {
-      if (file_format == 1) {
-        auto fasta_parser = bioparser::createParser<bioparser::FastaParser, FastAQ>(file);
-        fasta_parser->parse_objects(fastaq_objects, -1);
-      } else {
-        auto fastq_parser = bioparser::createParser<bioparser::FastqParser, FastAQ>(file);
-        fastq_parser->parse_objects(fastaq_objects, -1);
-      }
-    }
 
   static stats print_statistics(
     const std::vector<std::unique_ptr<FastAQ>> &fastaq_objects,

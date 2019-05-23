@@ -29,15 +29,23 @@ typedef std::tuple<uint64_t, uint32_t, bool> minimizer_t;
 typedef std::pair<uint32_t, uint32_t> index_pos_t;
 // Paired read
 typedef std::pair<std::vector<std::unique_ptr<fastaq::FastAQ>>, std::vector<std::unique_ptr<fastaq::FastAQ>>> paired_reads_t;
+// bioparser ptr
+typedef std::unique_ptr<bioparser::Parser<fastaq::FastAQ>> parser_ptr_t;
+// Paired bioparser ptr
+typedef std::pair<std::unique_ptr<bioparser::Parser<fastaq::FastAQ>>, std::unique_ptr<bioparser::Parser<fastaq::FastAQ>>> paired_parser_ptr_t;
 
 // Accepted file formats
 const std::unordered_set<std::string> fasta_formats = {".fasta", ".fa", ".fasta.gz", ".fa.gz"};
 const std::unordered_set<std::string> fastq_formats = {".fastq", ".fq", ".fastq.gz", ".fq.gz"};
 
+// Sample size in bytes used for insert size inferrence
+constexpr uint32_t sample_bytes = 100 * 1024 * 1024;
+
 static struct option long_options[] = {
   {"help", no_argument, NULL, 'h'},
   {"version", no_argument, NULL, 'v'},
   {"paired", no_argument, NULL, 'p'},
+  {"infer", required_argument, NULL, 'I'},
   {"all", no_argument, NULL, 'a'},
   {"match", required_argument, NULL, 'm'},
   {"mismatch", required_argument, NULL, 'M'},
@@ -49,8 +57,9 @@ static struct option long_options[] = {
   {"frequency", required_argument, NULL, 'f'},
   {"insert_size", required_argument, NULL, 'i'},
   {"st_deviation", required_argument, NULL, 's'},
-  {"threads", required_argument, NULL, 't'},
   {"threshold", required_argument, NULL, 'T'},
+  {"threads", required_argument, NULL, 't'},
+  {"chunk_size", required_argument, NULL, 'c'},
   {NULL, no_argument, NULL, 0}
 };
 
@@ -74,7 +83,8 @@ void help(void) {
          "OPTIONS:\n"
          "  -h  or  --help           print help (displayed now) and exit\n"
          "  -v  or  --version        print version info and exit\n"
-         "  -p  or  --paired         use pairing information (needs insert size information)\n"
+         "  -p  or  --paired         paired-end mode\n"
+         "  -I  or  --infer          only output inferred insert size and standard deviation\n"
          "  -a  or  --all            output all found mappings\n"
          "  -m  or  --match          <int>\n"
          "                             default: 1\n"
@@ -90,8 +100,8 @@ void help(void) {
          "                             gap extend value\n"
          "  -b  or  --band           <int>\n"
          "                             default: -1\n"
-         "                             option: -2  => set band to half of QLEN\n"
          "                             ksw2 alignment band, band < 0 => disabled\n"
+         "                             option: -2  => set band to half of QLEN\n"
          "  -k  or  --kmers          <uint>\n"
          "                             default: 18\n"
          "                             constraints: largest supported is 32\n"
@@ -107,16 +117,20 @@ void help(void) {
          "  -i  or  --insert_size    <uint>\n"
          "                             default: 215\n"
          "                             fragment insert size mean\n"
+         "                             if set overrides automatic insert size inferrence\n"
          "  -s  or  --st_deviation   <float>\n"
          "                             default: 10.0\n"
          "                             fragment insert size standard deviation\n"
-         "  -t  or  --threads        <uint>\n"
-         "                             default: 3\n"
-         "                             number of threads\n"
          "  -T  or  --threshold      <uint>\n"
          "                             default: 2\n"
          "                             number of hits needed in order to consider\n"
          "                             a region a candidate for mapping\n"
+         "  -t  or  --threads        <uint>\n"
+         "                             default: 3\n"
+         "                             number of threads\n"
+         "  -c  or  --chunk_size     <uint>\n"
+         "                             default: max uint\n"
+         "                             read loading chunk size in MB\n"
   );
 }
 
@@ -157,11 +171,13 @@ int main(int argc, char **argv) {
   parameters.insert_size = 215;
   parameters.threshold = 2;
   bool paired = false;
+  bool infer_is = false;
   bool set_insert = false;
   uint32_t t = 3;
+  uint32_t chunk_size = -1;
   std::string cl_flags;
 
-  while ((optchr = getopt_long(argc, argv, "hvpam:M:o:e:b:k:w:f:i:s:t:T:", long_options, NULL)) != -1) {
+  while ((optchr = getopt_long(argc, argv, "hvpIam:M:o:e:b:k:w:f:i:s:T:t:c:", long_options, NULL)) != -1) {
     cl_flags += "-", cl_flags += optchr, cl_flags += " ";
     if (optarg != nullptr) cl_flags += optarg, cl_flags += " ";
     switch (optchr) {
@@ -175,6 +191,10 @@ int main(int argc, char **argv) {
       }
       case 'p': {
         paired = true;
+        break;
+      }
+      case 'I': {
+        infer_is = true;
         break;
       }
       case 'a': {
@@ -226,12 +246,16 @@ int main(int argc, char **argv) {
         parameters.sd = atof(optarg);
         break;
       }
+      case 'T': {
+        parameters.threshold = atoi(optarg);
+        break;
+      }
       case 't': {
         t = atoi(optarg);
         break;
       }
-      case 'T': {
-        parameters.threshold = atoi(optarg);
+      case 'c': {
+        chunk_size = atoi(optarg) * 1024 * 1024;
         break;
       }
       default: {
@@ -245,8 +269,12 @@ int main(int argc, char **argv) {
     fprintf(stderr, "[srmapper] error: Expected read(s) and reference. Use --help for usage.\n");
     exit(1);
   }
+  if (argc - optind == 2 && infer_is) {
+    fprintf(stderr, "[srmapper] error: Expected paired reads in order to infer insert size (option -I).\n");
+    exit(1);
+  }
   if (argc - optind == 2 && paired) {
-    fprintf(stderr, "[srmapper] error: Expected paired reads in order to use pairing information (option -p).\n");
+    fprintf(stderr, "[srmapper] error: Expected paired reads in order to use paired-end mode (option -p).\n");
     exit(1);
   }
 
@@ -260,7 +288,14 @@ int main(int argc, char **argv) {
       exit(1);
   }
   std::vector<std::unique_ptr<fastaq::FastAQ>> reference;
-  fastaq::FastAQ::parse(reference, reference_file, check_extension(reference_file, fasta_formats));
+
+  parser_ptr_t ref_parser;
+  if (check_extension(reference_file, fasta_formats)) {
+    ref_parser = bioparser::createParser<bioparser::FastaParser, fastaq::FastAQ>(reference_file);
+  } else {
+    ref_parser = bioparser::createParser<bioparser::FastqParser, fastaq::FastAQ>(reference_file);
+  }
+  ref_parser->parse_objects(reference, -1);
 
   fprintf(stderr, "\r[srmapper-load] loaded reference           \n"
                   "[srmapper-index] indexing reference... ");
@@ -268,7 +303,6 @@ int main(int argc, char **argv) {
   std::shared_ptr<thread_pool::ThreadPool> thread_pool = thread_pool::createThreadPool(t);
 
   std::vector<std::future<std::vector<minimizer_t>>> thread_futures_ref;
-
   for (uint32_t tasks = 0; tasks < t - 1; ++tasks) {
     thread_futures_ref.emplace_back(thread_pool->submit_task(brown::minimizers,
         reference[0]->sequence.c_str() + tasks * reference[0]->sequence.size() / t,
@@ -291,24 +325,55 @@ int main(int argc, char **argv) {
   }
   prep_ref(t_minimizers, parameters.f);
   std::unordered_map<uint64_t, index_pos_t> ref_index = index_ref(t_minimizers);
-
   fprintf(stderr, "\r[srmapper-index] indexed reference        \n");
+
   fastaq::FastAQ::print_statistics(reference, reference_file);
 
   auto i_end = std::chrono::steady_clock::now();
-
   auto i_interval = std::chrono::duration_cast<std::chrono::duration<double>>(i_end - i_start);
-
-  std::cerr << "[srmapper-index] indexing time: " << i_interval.count() << " sec" << std::endl;
+  fprintf(stderr, "[srmapper-index] index time: %.2f sec\n", i_interval.count());
   
+  if (infer_is && argc - optind == 3) {
+    std::string reads_file1(argv[optind + 1]);
+    std::string reads_file2(argv[optind + 2]);
+    if (!(check_extension(reads_file1, fasta_formats) || check_extension(reads_file1, fastq_formats))
+        || !(check_extension(reads_file2, fasta_formats) || check_extension(reads_file2, fastq_formats))) {
+      fprintf(stderr, "[srmapper] error: Unsupported paired-end reads formats. Check --help for supported file formats.\n");
+      exit(1);
+    }
+    paired_parser_ptr_t parser;
+    if (check_extension(reads_file1, fasta_formats) && check_extension(reads_file2, fasta_formats)) {
+      parser.first = bioparser::createParser<bioparser::FastaParser, fastaq::FastAQ>(reads_file1);
+      parser.second = bioparser::createParser<bioparser::FastaParser, fastaq::FastAQ>(reads_file2);
+    } else if (check_extension(reads_file1, fastq_formats) && check_extension(reads_file2, fastq_formats)) {
+      parser.first = bioparser::createParser<bioparser::FastqParser, fastaq::FastAQ>(reads_file1);
+      parser.second = bioparser::createParser<bioparser::FastqParser, fastaq::FastAQ>(reads_file2);
+    } else {
+      fprintf(stderr, "[srmapper] error: Paired-end reads formats not equal.\n");
+      exit(1);
+    }
+
+    paired_reads_t paired_reads;
+    parser.first->parse_objects(paired_reads.first, sample_bytes);
+    parser.second->parse_objects(paired_reads.second, sample_bytes);
+
+    infer_insert_size(ref_index, t_minimizers,
+                      reference[0], paired_reads,
+                      parameters);
+    fprintf(stderr, "[srmapper-map] inferred insert size mean, standard deviation: %u, %.2f\n", 
+            parameters.insert_size, parameters.sd);
+    return 0;
+  }
+
   auto m_start = std::chrono::steady_clock::now();
 
-  std::cout << "@HD\tVN:1.6\n"
-               "@SQ\tSN:" << reference[0]->name << "\tLN:" << reference[0]->sequence.size() << "\n"
-               "@PG\tID:srmapper\tPN:srmapper\tCL:" << argv[0] << " " << cl_flags << argv[optind] << " ";
-
   if (argc - optind == 3) {
-    fprintf(stderr, "[srmapper-load] loading paired-end reads... ");
+    if (paired) {
+      fprintf(stderr, "[srmapper] paired-end mode\n");
+    }
+    else {
+      fprintf(stderr, "[srmapper] single-end mode\n");
+    }
 
     std::string reads_file1(argv[optind + 1]);
     std::string reads_file2(argv[optind + 2]);
@@ -317,33 +382,64 @@ int main(int argc, char **argv) {
       fprintf(stderr, "[srmapper] error: Unsupported paired-end reads formats. Check --help for supported file formats.\n");
       exit(1);
     }
-    paired_reads_t paired_reads;
-    fastaq::FastAQ::parse(paired_reads.first, reads_file1, check_extension(reads_file1, fasta_formats));
-    fastaq::FastAQ::parse(paired_reads.second, reads_file2, check_extension(reads_file2, fasta_formats));
-
-    fprintf(stderr, "\r[srmapper-load] loaded paired-end reads        \n");
-    fastaq::stats pr1_stats = fastaq::FastAQ::print_statistics(paired_reads.first, reads_file1);
-    fastaq::stats pr2_stats = fastaq::FastAQ::print_statistics(paired_reads.second, reads_file2);
-
-    if (paired) {
-      fprintf(stderr, "[srmapper-map] using insert size information\n");
-      if (pr1_stats.num != pr2_stats.num) {
-        fprintf(stderr, "[srmapper] error: Paired-end read files must have equal number of reads (pairs).\n");
-        exit(1);
-      }
-      if (pr1_stats.max - pr1_stats.min > 0 || pr2_stats.max - pr2_stats.min > 0) {
-        fprintf(stderr, "[srmapper] warning: Reads are not of fixed size.\n");
-      }
-      if (!set_insert) {
-        infer_insert_size(ref_index, t_minimizers,
-                          reference[0], paired_reads,
-                          parameters);
-        fprintf(stderr, "[srmapper-map] inferred insert size mean, standard deviation: %u, %.2f\n", 
-                parameters.insert_size, parameters.sd);
-      }
+    paired_parser_ptr_t parser;
+    if (check_extension(reads_file1, fasta_formats) && check_extension(reads_file2, fasta_formats)) {
+      parser.first = bioparser::createParser<bioparser::FastaParser, fastaq::FastAQ>(reads_file1);
+      parser.second = bioparser::createParser<bioparser::FastaParser, fastaq::FastAQ>(reads_file2);
+    } else if (check_extension(reads_file1, fastq_formats) && check_extension(reads_file2, fastq_formats)) {
+      parser.first = bioparser::createParser<bioparser::FastqParser, fastaq::FastAQ>(reads_file1);
+      parser.second = bioparser::createParser<bioparser::FastqParser, fastaq::FastAQ>(reads_file2);
+    } else {
+      fprintf(stderr, "[srmapper] error: Paired-end reads formats not equal.\n");
+      exit(1);
     }
-    std::cout << argv[optind + 1] << " " << argv[optind + 2] << "\n";
-    std::vector<std::future<std::string>> thread_futures;
+
+    printf("@HD\tVN:1.6\n"
+           "@SQ\tSN:%s\tLN:%lu\n"
+           "@PG\tID:srmapper\tPN:srmapper\tCL:%s %s%s %s %s\n", 
+           reference[0]->name.c_str(), reference[0]->sequence.size(), 
+           argv[0], cl_flags.c_str(), 
+           argv[optind], argv[optind + 1], argv[optind + 2]);
+    // std::cout << "@HD\tVN:1.6\n"
+    //              "@SQ\tSN:" << reference[0]->name << "\tLN:" << reference[0]->sequence.size() << "\n"
+    //              "@PG\tID:srmapper\tPN:srmapper\tCL:" << argv[0] << " " << cl_flags << argv[optind] << " ";
+    // std::cout << argv[optind + 1] << " " << argv[optind + 2] << "\n";
+
+    uint32_t chunk_num = 1;
+    while (true) {
+      fprintf(stderr, "[srmapper] chunk number %u\n", chunk_num++);
+      fprintf(stderr, "[srmapper-load] loading paired-end reads... ");
+
+
+      auto c_start = std::chrono::steady_clock::now();
+
+      paired_reads_t paired_reads;
+      bool status1 = parser.first->parse_objects(paired_reads.first, chunk_size);
+      bool status2 = parser.second->parse_objects(paired_reads.second, chunk_size);
+      
+      fprintf(stderr, "\r[srmapper-load] loaded paired-end reads        \n");
+      
+      fastaq::stats pr1_stats = fastaq::FastAQ::print_statistics(paired_reads.first, reads_file1);
+      fastaq::stats pr2_stats = fastaq::FastAQ::print_statistics(paired_reads.second, reads_file2);
+      
+      if (paired) {
+        if (pr1_stats.num != pr2_stats.num) {
+          fprintf(stderr, "[srmapper] error: Paired-end read files must have equal number of reads (pairs).\n");
+          exit(1);
+        }
+        if (pr1_stats.max - pr1_stats.min > 0 || pr2_stats.max - pr2_stats.min > 0) {
+          fprintf(stderr, "[srmapper] warning: Reads are not of fixed size.\n");
+        }
+        if (!set_insert) {
+          infer_insert_size(ref_index, t_minimizers,
+                            reference[0], paired_reads,
+                            parameters);
+          fprintf(stderr, "[srmapper-map] inferred insert size mean, standard deviation: %u, %.2f\n", 
+                  parameters.insert_size, parameters.sd);
+        }
+      }
+      
+      std::vector<std::future<std::string>> thread_futures;
       for (unsigned int tasks = 0; tasks < t - 1; ++tasks) {
         thread_futures.emplace_back(thread_pool->submit_task(paired ? map_paired : map_as_single, 
                 std::ref(ref_index), std::ref(t_minimizers), std::ref(reference[0]), std::ref(paired_reads),
@@ -352,46 +448,89 @@ int main(int argc, char **argv) {
       thread_futures.emplace_back(thread_pool->submit_task(paired ? map_paired : map_as_single, 
                 std::ref(ref_index), std::ref(t_minimizers), std::ref(reference[0]), std::ref(paired_reads),
                 std::ref(parameters), (t - 1) * paired_reads.first.size() / t, paired_reads.first.size()));
+      
       for (auto& it : thread_futures) {
         it.wait();
-        std::cout << it.get();
+        printf("%s", it.get().c_str());
+        // std::cout << it.get();
       }
+
+      auto c_end = std::chrono::steady_clock::now();
+      auto c_interval = std::chrono::duration_cast<std::chrono::duration<double>>(c_end - c_start);
+      fprintf(stderr, "[srmapper-map] chunk time: %.2f sec\n", c_interval.count());
+      
+      if (status1 == false || status2 == false) {
+        break;
+      }
+    }
   } else {
-    fprintf(stderr, "[srmapper-load] loading reads... ");
     std::string reads_file(argv[optind + 1]);
     if (!(check_extension(reads_file, fasta_formats) || check_extension(reads_file, fastq_formats))) {
       fprintf(stderr, "[srmapper] error: Unsupported format. Check --help for supported file formats.\n");
       exit(1);
     }
-    std::vector<std::unique_ptr<fastaq::FastAQ>> reads;
-    fastaq::FastAQ::parse(reads, reads_file, check_extension(reads_file, fasta_formats));
 
-    fprintf(stderr, "\r[srmapper-load] loaded reads        \n");
-    fastaq::FastAQ::print_statistics(reads, reads_file);
-
-    std::cout << argv[optind + 1] << "\n";
-
-    std::vector<std::future<std::string>> thread_futures;
-    for (unsigned int tasks = 0; tasks < t - 1; ++tasks) {
-      thread_futures.emplace_back(thread_pool->submit_task(map_single, std::ref(ref_index), std::ref(t_minimizers),
-              std::ref(reference[0]), std::ref(reads),
-              std::ref(parameters), tasks * reads.size() / t, (tasks + 1) * reads.size() / t));  
+    parser_ptr_t parser;
+    if (check_extension(reads_file, fasta_formats)) {
+      parser = bioparser::createParser<bioparser::FastaParser, fastaq::FastAQ>(reads_file);
+    } else {
+      parser = bioparser::createParser<bioparser::FastqParser, fastaq::FastAQ>(reads_file);
     }
-    thread_futures.emplace_back(thread_pool->submit_task(map_single, std::ref(ref_index), std::ref(t_minimizers),
-              std::ref(reference[0]), std::ref(reads),
-              std::ref(parameters), (t - 1) * reads.size() / t, reads.size()));
-    
-    for (auto& it : thread_futures) {
-      it.wait();
-      std::cout << it.get();
+
+    printf("@HD\tVN:1.6\n"
+           "@SQ\tSN:%s\tLN:%lu\n"
+           "@PG\tID:srmapper\tPN:srmapper\tCL:%s %s%s %s\n", 
+           reference[0]->name.c_str(), reference[0]->sequence.size(), 
+           argv[0], cl_flags.c_str(), 
+           argv[optind], argv[optind + 1]);
+    // std::cout << "@HD\tVN:1.6\n"
+    //              "@SQ\tSN:" << reference[0]->name << "\tLN:" << reference[0]->sequence.size() << "\n"
+    //              "@PG\tID:srmapper\tPN:srmapper\tCL:" << argv[0] << " " << cl_flags << argv[optind] << " ";
+    // std::cout << argv[optind + 1] << "\n";
+
+    uint32_t chunk_num = 1;
+    while(true) {
+      fprintf(stderr, "[srmapper] chunk number %u\n", chunk_num++);
+      fprintf(stderr, "[srmapper-load] loading reads... ");
+
+      auto c_start = std::chrono::steady_clock::now();
+
+      std::vector<std::unique_ptr<fastaq::FastAQ>> reads;
+      bool status = parser->parse_objects(reads, chunk_size);
+
+      fprintf(stderr, "\r[srmapper-load] loaded reads        \n");
+
+      fastaq::FastAQ::print_statistics(reads, reads_file);
+
+      std::vector<std::future<std::string>> thread_futures;
+      for (unsigned int tasks = 0; tasks < t - 1; ++tasks) {
+        thread_futures.emplace_back(thread_pool->submit_task(map_single, std::ref(ref_index), std::ref(t_minimizers),
+                std::ref(reference[0]), std::ref(reads),
+                std::ref(parameters), tasks * reads.size() / t, (tasks + 1) * reads.size() / t));  
+      }
+      thread_futures.emplace_back(thread_pool->submit_task(map_single, std::ref(ref_index), std::ref(t_minimizers),
+                std::ref(reference[0]), std::ref(reads),
+                std::ref(parameters), (t - 1) * reads.size() / t, reads.size()));
+      
+      for (auto& it : thread_futures) {
+        it.wait();
+        printf("%s", it.get().c_str());
+        // std::cout << it.get();
+      }
+
+      auto c_end = std::chrono::steady_clock::now();
+      auto c_interval = std::chrono::duration_cast<std::chrono::duration<double>>(c_end - c_start);
+      fprintf(stderr, "[srmapper-map] chunk time: %.2f sec\n", c_interval.count());
+
+      if (status == false) {
+        break;
+      }
     }
   }
 
   auto m_end = std::chrono::steady_clock::now();
-
   auto m_interval = std::chrono::duration_cast<std::chrono::duration<double>>(m_end - m_start);
-
-  std::cerr << "[srmapper-map] mapping time: " << m_interval.count() << " sec" << std::endl;
+  fprintf(stderr, "[srmapper-map] mapping time: %.2f sec\n", m_interval.count());
 
   return 0;
 }
