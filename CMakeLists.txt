@@ -11,6 +11,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic")
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(KSW2_FILES src/ksw2_extd.c src/ksw2_extd2_sse.c src/ksw2_extf2_sse.c src/ksw2_exts2_sse.c src/ksw2_extz.c src/ksw2_extz2_sse.c)
+
 configure_file(
   "${PROJECT_SOURCE_DIR}/src/long_reads_mapper.hpp.in"
   "${PROJECT_BINARY_DIR}/long_reads_mapper.hpp"
@@ -25,7 +27,7 @@ add_subdirectory(vendor/thread_pool EXCLUDE_FROM_ALL)
 
 include_directories(${PROJECT_SOURCE_DIR}/src)
 
-add_executable(long_reads_mapper src/long_reads_mapper.cc src/ksw2_extz2_sse.c src/index.cc src/util.cc)
+add_executable(long_reads_mapper src/long_reads_mapper.cc src/index.cc src/util.cc ${KSW2_FILES})
 
 target_link_libraries(long_reads_mapper bioparser brown_minimizers thread_pool pthread)
 

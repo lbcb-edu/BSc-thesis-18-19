@@ -82,10 +82,10 @@ void help(void) {
          "                             default: 1000\n"
          "                             number of bases to take from start and end\n"
          "  -M  or  --match          <int>\n"
-         "                             default: 4\n"
+         "                             default: 2\n"
          "                             match number\n"
          "  -m  or  --mismatch       <int>\n"
-         "                             default: -1\n"
+         "                             default: -4\n"
          "                             mismatch number\n"
          "  -g  or  --gap            <int>\n"
          "                             default: -2\n"
@@ -286,10 +286,17 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
 
     std::string cigar ("NO CIGAR");
 
+    std::string seq;
+    if(rev){
+      seq = reverse_complement(data_set[fobj]->sequence, start, end - start);
+    }else{
+      seq = data_set[fobj]->sequence.substr(start, end - start);
+    }
+
     //ksw2
     if(bool_cigar){
-      int a = 1;
-      int b = -2;
+      int8_t a = match;
+      int8_t b = mismatch;
       int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
       int tl = ref_end - ref_start;
       int ql = end - start;
@@ -297,33 +304,52 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
       ksw_extz_t ez;
       memset(&ez, 0, sizeof(ksw_extz_t));
       memset(c, 5, 256);
-      c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
-      c['G'] = c['g'] = 2; c['T'] = c['t'] = 3; c['U'] = c['u'] = 3;
+      // c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
+      // c['G'] = c['g'] = 2; c['T'] = c['t'] = 3; c['U'] = c['u'] = 3;
+
+      c['C'] = c['c'] = 0; c['A'] = c['a'] = 1;
+      c['T'] = c['t'] = c['U'] = c['u'] = 2; c['G'] = c['g'] = 3;
+
       ts = (uint8_t*)malloc(tl);
       qs = (uint8_t*)malloc(ql);
 
-      if(!rev){
-        for (int i = 0; i < tl; ++i) ts[i] = c[(uint8_t)data_set[fobj]->sequence[i + ref_start]]; // encode to 0/1/2/3
-      }else{
-        for (int i = 0; i < tl; ++i) ts[i] = (uint8_t)3 - c[(uint8_t)data_set[fobj]->sequence[i + ref_start]]; // encode to 0/1/2/3
-      }
-      
-      for (int i = 0; i < ql; ++i) qs[i] = c[(uint8_t)reference[ref_num]->sequence[i + start]]; // encode to 0/1/2/3
-      
-      ksw_extz2_sse(0, ql, qs, tl, ts, 5, mat, 2, 1, -1, -1, 0, 0, &ez);
+      for (int i = 0; i < tl; ++i) ts[i] = c[(uint8_t)seq[i]]; // encode to 0/1/2/3
+      for (int i = 0; i < ql; ++i) qs[i] = c[(uint8_t)reference[ref_num]->sequence[i + ref_start]]; // encode to 0/1/2/3      
+
+      int gapo = 4;
+      int gapo2 = 24;
+      int gape = 1;
+      int gape2 = 2;
+      int w = 500;
+      int z1 = 400;
+      int z2 = 200;
+      int s = 80;
+      int noncan = 0;
+
+      // printf("%d\t%d\n", tl, ql);
+      // for(int i = 0; i < 20; i++){
+      //   std::cout << data_set[fobj]->sequence[i + start];
+      // }
+      // printf("\n");
+      // for(int i = 0; i < 20; i++){
+      //   std::cout << reference[ref_num]->sequence[i + ref_start];
+      // }
+      // printf("\n");
+
+      ksw_extz2_sse(0, ql, qs, tl, ts, 5, mat, gapo, gape, w, z1, 0, 0, &ez);
+      // ksw_extd2_sse(0, ql, qs, tl, ts, 5, mat, gapo, gape, gapo2, gape2, w, z1, 0, 0, &ez);
+      // ksw_exts2_sse(0, ql, qs, tl, ts, 5, mat, gapo, gape, gapo2, noncan, z1,  0, &ez); //ispis??
+
+      //ove tri minimap2 ne implementira
+      // ksw_extz(0, ql, qs, tl, ts, 5, mat, gapo, gape, w, z1, 0, &ez);
+      // ksw_extd(0, ql, qs, tl, ts, 5, mat, gapo, gape, gapo2, gape2, w, z1, 0, &ez);
+      // ksw_extf2_sse(0, ql, qs, tl, ts, a, b, gape, w, z1, &ez);
+
 
       cigar.clear();
       for (int i = 0; i < ez.n_cigar; ++i) cigar += std::to_string(ez.cigar[i]>>4) + "MID"[ez.cigar[i]&0xf];
 
       free(ez.cigar); free(ts); free(qs);
-    }
-
-
-    std::string seq;
-    if(rev){
-      seq = reverse_complement(data_set[fobj]->sequence, start, end - start);
-    }else{
-      seq = data_set[fobj]->sequence.substr(start, end - start);
     }
 
     sam += data_set[fobj]->name + "\t" +
@@ -338,14 +364,16 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
           seq + "\t" +
           "*\n"; //QUAL
 
-    //ispis prilagodenog PAF za testiranje
-    // std::string reverse;
-    // if(rev){
-    //   reverse = "-";
-    // }else{
-    //   reverse = "+";
-    // }
-    // paf = paf + data_set[fobj]->name.c_str() + "\t" + std::to_string(sequence_length) + "\t" + std::to_string(start) + "\t" + std::to_string(end) + "\t" + reverse + "\t" + std::to_string(ref_start) + "\t" + std::to_string(ref_end) + "\n";
+    // sam += cigar + "\n";
+
+    // ispis prilagodenog PAF za testiranje
+    std::string reverse;
+    if(rev){
+      reverse = "-";
+    }else{
+      reverse = "+";
+    }
+    paf = paf + data_set[fobj]->name.c_str() + "\t" + std::to_string(sequence_length) + "\t" + std::to_string(start) + "\t" + std::to_string(end) + "\t" + reverse + "\t" + std::to_string(ref_start) + "\t" + std::to_string(ref_end) + "\n";
 
 
     //za tesitranje kad nade samo jedan kraj
@@ -355,16 +383,16 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
       // top3Info(start_hits_top, start_hits_top_rev, end_hits_top, end_hits_top_rev);
     // } 
   }
-  return sam;
-  // return paf;
+  // return sam;
+  return paf;
   // return "";
 }
 
 int main (int argc, char **argv) {
   int optchr;
 
-  int match = 4;
-  int mismatch = -1;
+  int match = 2;
+  int mismatch = -4;
   int gap = -2;
 
   int window_length = 5;
@@ -507,7 +535,7 @@ int main (int argc, char **argv) {
     prep_ref(t_minimizers, f);
     std::unordered_map<unsigned int, minimizer_index_t> ref_index = index_ref(t_minimizers);
 
-    //prvih 250 - zbog testiranja
+    // prvih 250 - zbog testiranja
     // std::cout << map_paf(std::ref(t_minimizers), std::ref(ref_index), std::ref(data_set), std::ref(reference),
     //     k, window_length, match, mismatch, gap, 0, 250, k_value, bool_cigar, ref_num);
 
