@@ -15,7 +15,8 @@
 #define MATCH 0
 #define INSERT 1
 #define DELETE 2
-
+#define DELETE1 3
+#define DELETE2 4
 
 namespace OSALG_vector {
 
@@ -63,29 +64,29 @@ namespace OSALG_vector {
 			mat[i][j].parent = DELETE;
 		}
 		else {
-			mat[i][j].d_val = mat[i][j].f_arr[0] = mat[i - 1][j - 1].d_val + diff(seq1[i - 1], seq2[j - 1]);
-			mat[i][j].parent = MATCH;
-
-			mat[i][j].f_arr[L + 1] = std::min(mat[i][j - 1].d_val + v[0], mat[i][j - 1].f_arr[L + 1]) + u[0];
-			if (mat[i][j].d_val > mat[i][j].f_arr[L + 1]) {
-				mat[i][j].d_val = mat[i][j].f_arr[L + 1];
-				mat[i][j].parent = INSERT;
-			}
+			mat[i][j].d_val = std::numeric_limits<int>::max();
 
 			for (int k = 1; k < L + 1; ++k) {
 				mat[i][j].f_arr[k] = std::min(mat[i - 1][j].d_val + v[k - 1], mat[i - 1][j].f_arr[k]) + u[k - 1];
 
-				if(k > 1) {
-					if (mat[i][j].d_val >= mat[i][j].f_arr[k]) {
-						mat[i][j].d_val = mat[i][j].f_arr[k];
-						mat[i][j].parent = DELETE;
-					}
-				} else {
-					if (mat[i][j].d_val >= mat[i][j].f_arr[k]) {
-						mat[i][j].d_val = mat[i][j].f_arr[k];
-						mat[i][j].parent = DELETE;
-					}	
+				if(mat[i][j].d_val >= mat[i][j].f_arr[k]) {
+					mat[i][j].d_val = mat[i][j].f_arr[k];
+					mat[i][j].parent = (k == 1) ? DELETE1 : DELETE2;
 				}
+			}
+
+			mat[i][j].f_arr[L + 1] = std::min(mat[i][j - 1].d_val + v[0], mat[i][j - 1].f_arr[L + 1]) + u[0];
+
+			if(mat[i][j].d_val > mat[i][j].f_arr[L + 1]) {
+				mat[i][j].d_val = mat[i][j].f_arr[L + 1];
+				mat[i][j].parent = INSERT;
+			}
+
+			mat[i][j].f_arr[0] = mat[i - 1][j - 1].d_val + diff(seq1[i - 1], seq2[j - 1]);
+
+			if(mat[i][j].d_val > mat[i][j].f_arr[0]) {
+				mat[i][j].d_val = mat[i][j].f_arr[0];
+				mat[i][j].parent = MATCH;
 			}
 
 		}
@@ -142,7 +143,7 @@ namespace OSALG_vector {
 		}
 	}
 
-	void construct_CIGAR(std::vector<std::vector<matrix_element>> const &matrix, std::string const &seq1, std::string const &seq2, std::string &cigar) {
+	void construct_CIGAR(std::vector<std::vector<matrix_element>> &matrix, std::string const &seq1, std::string const &seq2, std::string &cigar) {
 		unsigned int i = seq1.length();
 		unsigned int j = seq2.length();
 
@@ -150,7 +151,22 @@ namespace OSALG_vector {
 		unsigned int counter;
 		char lastChar, c;
 
+		bool del_mode = false;
+
 		while (matrix[i][j].parent != STOP) {
+
+			if(matrix[i][j].parent == DELETE1) {
+				del_mode = false;
+				matrix[i][j].parent = DELETE;
+			} else if(matrix[i][j].parent == DELETE2) {
+				del_mode = true;
+				matrix[i][j].parent = DELETE;
+			}
+
+			if(del_mode && i > 0) {
+				matrix[i][j].parent = DELETE;
+			}
+
 			if (matrix[i][j].parent == MATCH) {
 				if (seq2[j - 1] == seq1[i - 1]) {
 					c = '=';
