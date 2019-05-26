@@ -29,7 +29,6 @@
 #include "index.hpp"
 #include "util.hpp"
 
-
 const std::set<std::string> fasta_formats = {".fasta", ".fa", ".fasta.gz", ".fa.gz"};
 const std::set<std::string> fastq_formats = {".fastq", ".fq", ".fastq.gz", ".fq.gz"};
 
@@ -196,7 +195,7 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
         // printf("%s PRESKACEM, nema niceg\n", data_set[fobj]->name.c_str());
         continue;
       }
-      
+
       //ima pocetak
       if(bool_start){
 
@@ -258,7 +257,6 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
           // printf("%s PRESKACEM, ima kraj, ali nije nadeno\n", data_set[fobj]->name.c_str());
           continue;
         }
-        ispis = true; //za testiranje
       }
     }
 
@@ -269,6 +267,7 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
 
     find_positions(start_hits_same, start_hits_rev, end_hits_same,end_hits_rev, rev, starting_region, ending_region, start, end, ref_start, ref_end, k_value);
 
+    unsigned int help_end = end;
     ref_end += k;
     end = sequence_length - k_value - 1 + end + k;
 
@@ -276,7 +275,7 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
     if(region_size != sequence_length / k_value){
       if(bool_start){
         int diff = (sequence_length / k_value - region_size) + 1;
-        end = sequence_length - k_value * diff - 1 + end + k;
+        end = sequence_length - k_value * diff - 1 + help_end + k;
       }
       if(bool_end){
         int diff = sequence_length / k_value - region_size;
@@ -352,8 +351,9 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
       free(ez.cigar); free(ts); free(qs);
     }
 
+    // SAM format
     sam += data_set[fobj]->name + "\t" +
-          "??" + "\t" + //FLAG
+          "0" + "\t" + //FLAG
           reference[ref_num]->name + "\t" +
           std::to_string(ref_start + 1) + "\t" +
           "255" + "\t" + //MAPQ
@@ -364,24 +364,21 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
           seq + "\t" +
           "*\n"; //QUAL
 
-    // sam += cigar + "\n";
+    // PAF format
+    paf += data_set[fobj]->name + "\t" +
+            std::to_string(sequence_length) + "\t" + 
+            std::to_string(start) + "\t" + 
+            std::to_string(end) + "\t" + 
+            (rev ? "-" : "+") + "\t" +
+            reference[ref_num]->name + "\t" +
+            std::to_string(reference[ref_num]->sequence.size()) + "\t" +
+            std::to_string(ref_start) + "\t" +
+            std::to_string(ref_end) + "\t" +
+            "*" + "\t" + //Number of residue matches
+            std::to_string(end - start) + "\t" + //Alignment block length
+            "255\n"; //Mapping quality 
 
-    // ispis prilagodenog PAF za testiranje
-    std::string reverse;
-    if(rev){
-      reverse = "-";
-    }else{
-      reverse = "+";
-    }
-    paf = paf + data_set[fobj]->name.c_str() + "\t" + std::to_string(sequence_length) + "\t" + std::to_string(start) + "\t" + std::to_string(end) + "\t" + reverse + "\t" + std::to_string(ref_start) + "\t" + std::to_string(ref_end) + "\n";
 
-
-    //za tesitranje kad nade samo jedan kraj
-    // if(ispis){
-      // printf("%s\t%u\t%u\t%u\t%c\t%u\t%u\n",data_set[fobj]->name.c_str(), sequence_length, start, end, rev ? '-' : '+', ref_start, ref_end);
-      // printf("%d\t%lu\t%lu", region_size, starting_region, ending_region);
-      // top3Info(start_hits_top, start_hits_top_rev, end_hits_top, end_hits_top_rev);
-    // } 
   }
   // return sam;
   return paf;
@@ -395,10 +392,10 @@ int main (int argc, char **argv) {
   int mismatch = -4;
   int gap = -2;
 
-  int window_length = 5;
+  int window_length = 10;
   int k = 15;
   int t = 2;
-  float f = 0.001f;
+  float f = 0.0002f;
   bool bool_cigar = false;
   int k_value = 1000;
 
@@ -557,7 +554,7 @@ int main (int argc, char **argv) {
     for (auto& it : thread_futures) {
       it.wait();
       std::cout << it.get();
-    } 
+    }
   }
   return 0;
 }
