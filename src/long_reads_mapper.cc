@@ -17,55 +17,69 @@
 #include <algorithm>
 #include <cstring>
 
-
 #include "long_reads_mapper.hpp"
 #include "bioparser/bioparser.hpp"
 #include "thread_pool/thread_pool.hpp"
 #include "brown_minimizers.hpp"
 #include "ksw2.h"
 
-
 #include "fastaq.hpp"
 #include "index.hpp"
 #include "util.hpp"
+
+typedef std::tuple<unsigned int, unsigned int, bool> minimizer; // value, position, origin
+typedef std::pair<unsigned int, unsigned int> minimizer_index_t; // position, amount
+typedef std::pair<unsigned int, unsigned int> minimizer_hit_t; // query position, reference position
+typedef std::pair<unsigned int, int> region_hits; //region number, number of hits
 
 const std::set<std::string> fasta_formats = {".fasta", ".fa", ".fasta.gz", ".fa.gz"};
 const std::set<std::string> fastq_formats = {".fastq", ".fq", ".fastq.gz", ".fq.gz"};
 
 std::map<char, char> complement_map = {{'C', 'G'}, {'A', 'T'}, {'T', 'A'}, {'U', 'A'}, {'G', 'C'}};
 
-typedef std::tuple<unsigned int, unsigned int, bool> minimizer;
-typedef std::tuple<unsigned int, unsigned int, bool> triplet_t;
+int k_value = 1000;
+float f = 0.001f; // za odbacivanje minimizera
+float percentage = 0.5; // koliki postotak sekvence gledati ako nema dovoljan broj hitova
 
-// position, amount
-typedef std::pair<unsigned int, unsigned int> minimizer_index_t;
+int window_length = 5;
+int k = 15;
+int bandwidth = 500;
+int threshold = 5;
 
-// query position, reference position
-typedef std::pair<unsigned int, unsigned int> minimizer_hit_t;
+int match = 2;
+int mismatch = -4;
+int gap_open = 4;
+int gap_extension = 2;
+int z_drop = 400;
 
-//region number, number of hits
-typedef std::pair<unsigned int, int> region_hits;
-
+bool bool_cigar = false;
+bool sam_format = false;
+int t = 3;
 
 static struct option long_options[] = {
   {"help", no_argument, NULL, 'h'},
   {"version", no_argument, NULL, 'v'},
-  {"match", required_argument, NULL, 'M'},
-  {"mismatch", required_argument, NULL, 'm'},
-  {"gap", required_argument, NULL, 'g'},
-  {"window_length", required_argument, NULL, 'w'},
+  {"kvalue", required_argument, NULL, 'K'},
   {"kmers", required_argument, NULL, 'k'},
+  {"window_length", required_argument, NULL, 'w'},
+  {"bandwidth", required_argument, NULL, 'r'},
+  {"min_hits", required_argument, NULL, 'n'},
+  {"match", required_argument, NULL, 'A'},
+  {"mismatch", required_argument, NULL, 'B'},
+  {"gap_open", required_argument, NULL, 'O'},
+  {"gap_extension", required_argument, NULL, 'E'},
+  {"z_drop", required_argument, NULL, 'z'},
+  {"sam", no_argument, NULL, 'a'},
+  {"cigar", no_argument, NULL, 'c'},
   {"threads", required_argument, NULL, 't'},
   {NULL, no_argument, NULL, 0}
 };
 
 void help(void) {
-  printf("long_reads_mapper - for mapping long erroneous fragments reference  genome.\n\n"
-
+  printf("long_reads_mapper - for mapping long fragments on reference genome.\n\n"
          "Usage: long_reads_mapper [OPTIONS] [file1 file2]\n"
          "file1 - FASTA/FASTQ file containing a set of fragments\n"
          "file2 - FASTA file containing reference genome\n\n"
-
          "Supported file extensions: .fasta\n"
          "                           .fa\n"
          "                           .fastq\n"
@@ -80,15 +94,6 @@ void help(void) {
          "  -K  or  --kvalue         <int>\n"
          "                             default: 1000\n"
          "                             number of bases to take from start and end\n"
-         "  -M  or  --match          <int>\n"
-         "                             default: 2\n"
-         "                             match number\n"
-         "  -m  or  --mismatch       <int>\n"
-         "                             default: -4\n"
-         "                             mismatch number\n"
-         "  -g  or  --gap            <int>\n"
-         "                             default: -2\n"
-         "                             gap number\n"
          "  -w  or  --window_length  <int>\n"
          "                             default: 5\n"
          "                             length of window\n"
@@ -96,13 +101,34 @@ void help(void) {
          "                             default: 15\n"
          "                             constraints: largest supported is 16\n"
          "                             number of letters in substrings\n"
+         "  -r  or  --bandwidth      <int>\n"
+         "                             default: 500\n"
+         "                             bandwidth used in chaining and DP-based alignment\n"
+         "  -n  or  --min_hits       <int>\n"
+         "                             default: 5\n"
+         "                             minimum hits when finding regions\n"
+         "  -A  or  --match          <int>\n"
+         "                             default: 2\n"
+         "                             match number\n"
+         "  -B  or  --mismatch       <int>\n"
+         "                             default: -4\n"
+         "                             mismatch number\n"
+         "  -O  or  --gap_open       <int>\n"
+         "                             default: 4\n"
+         "                             gap open penalty\n"
+         "  -E  or  --gap_extension  <int>\n"
+         "                             default: 2\n"
+         "                             gap extension penalty\n"
+         "  -z  or  --z_drop         <int>\n"
+         "                             default: 400\n"
+         "                             Z-drop score\n"
+         "  -c  or  --cigar          output CIGAR in PAF\n"
+         "  -a  or  --sam            output in the SAM format (PAF by default)\n"
          "  -t  or  --threads        <int>\n"
          "                             default: 3\n"
          "                             number of threads\n"
-         "  -c  or  --cigar          enable cigar string\n"
   );
 }
-
 
 void version(void) {
   printf("brown_mapper %d.%d\n",
@@ -131,20 +157,14 @@ std::string reverse_complement(const std::string& original, unsigned int pos, un
   return rc;
 }
 
-
-std::string map_paf(const std::vector<triplet_t>& t_minimizers,
+std::string map_paf(
+    const std::vector<minimizer>& t_minimizers,
     const std::unordered_map<unsigned int, minimizer_index_t>& ref_index,
     const std::vector<std::unique_ptr<FastAQ>>& data_set,
     const std::vector<std::unique_ptr<FastAQ>>& reference,
-    unsigned int k, unsigned int window_length,
-    int match, int mismatch, int gap,
-    unsigned int t_begin, unsigned int t_end, int k_value,
-    bool bool_cigar, unsigned int ref_num) {
+    unsigned int t_begin, unsigned int t_end, unsigned int ref_num) {
 
-  std::string paf;
-  std::string sam;
-  double percentage = 0.5;
-  int threshold = 5;
+  std::string result;
 
   for (unsigned int fobj = t_begin; fobj < t_end; fobj++) {
     unsigned int sequence_length = data_set[fobj]->sequence.size();
@@ -183,8 +203,6 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
 
     bool bool_start = false;
     bool bool_end = false;
-
-    bool ispis = false; //izbrisi -> koristi se zbog testiranja
 
     if(hits_number == 0){
 
@@ -225,7 +243,6 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
           // printf("%s PRESKACEM, ima pocetak, ali nije nadeno\n", data_set[fobj]->name.c_str());
           continue;
         }
-        ispis = true;  //za testiranje
       }
 
       //ima kraj
@@ -283,8 +300,6 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
       }
     }
 
-    std::string cigar ("NO CIGAR");
-
     std::string seq;
     if(rev){
       seq = reverse_complement(data_set[fobj]->sequence, start, end - start);
@@ -293,7 +308,8 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
     }
 
     //ksw2
-    if(bool_cigar){
+    std::string cigar;
+    if(bool_cigar || sam_format){
       int8_t a = match;
       int8_t b = mismatch;
       int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
@@ -315,57 +331,27 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
       for (int i = 0; i < tl; ++i) ts[i] = c[(uint8_t)seq[i]]; // encode to 0/1/2/3
       for (int i = 0; i < ql; ++i) qs[i] = c[(uint8_t)reference[ref_num]->sequence[i + ref_start]]; // encode to 0/1/2/3      
 
-      int gapo = 4;
-      int gapo2 = 24;
-      int gape = 1;
-      int gape2 = 2;
-      int w = 500;
-      int z1 = 400;
-      int z2 = 200;
-      int s = 80;
-      int noncan = 0;
+      ksw_extz2_sse(0, ql, qs, tl, ts, 5, mat, gap_open, gap_extension, bandwidth, z_drop, 0, 0, &ez);
 
-      // printf("%d\t%d\n", tl, ql);
-      // for(int i = 0; i < 20; i++){
-      //   std::cout << data_set[fobj]->sequence[i + start];
-      // }
-      // printf("\n");
-      // for(int i = 0; i < 20; i++){
-      //   std::cout << reference[ref_num]->sequence[i + ref_start];
-      // }
-      // printf("\n");
-
-      ksw_extz2_sse(0, ql, qs, tl, ts, 5, mat, gapo, gape, w, z1, 0, 0, &ez);
+      // int gapo = 4;
+      // int gapo2 = 24;
+      // int gape = 1;
+      // int gape2 = 2;
+      // int w = 500;
+      // int z1 = 400;
+      // int z2 = 200;
+      // int s = 80;
+      // int noncan = 0;
       // ksw_extd2_sse(0, ql, qs, tl, ts, 5, mat, gapo, gape, gapo2, gape2, w, z1, 0, 0, &ez);
       // ksw_exts2_sse(0, ql, qs, tl, ts, 5, mat, gapo, gape, gapo2, noncan, z1,  0, &ez); //ispis??
 
-      //ove tri minimap2 ne implementira
-      // ksw_extz(0, ql, qs, tl, ts, 5, mat, gapo, gape, w, z1, 0, &ez);
-      // ksw_extd(0, ql, qs, tl, ts, 5, mat, gapo, gape, gapo2, gape2, w, z1, 0, &ez);
-      // ksw_extf2_sse(0, ql, qs, tl, ts, a, b, gape, w, z1, &ez);
-
-
-      cigar.clear();
       for (int i = 0; i < ez.n_cigar; ++i) cigar += std::to_string(ez.cigar[i]>>4) + "MID"[ez.cigar[i]&0xf];
-
       free(ez.cigar); free(ts); free(qs);
     }
 
-    // SAM format
-    sam += data_set[fobj]->name + "\t" +
-          "0" + "\t" + //FLAG
-          reference[ref_num]->name + "\t" +
-          std::to_string(ref_start + 1) + "\t" +
-          "255" + "\t" + //MAPQ
-          cigar + "\t" +
-          "*" + "\t" + //RNEXT
-          "0" + "\t" + //PNEXT
-          "0" + "\t" +  //TLEN
-          seq + "\t" +
-          "*\n"; //QUAL
-
-    // PAF format
-    paf += data_set[fobj]->name + "\t" +
+    //PAF format
+    if(!sam_format){ 
+      result += data_set[fobj]->name + "\t" +
             std::to_string(sequence_length) + "\t" + 
             std::to_string(start) + "\t" + 
             std::to_string(end) + "\t" + 
@@ -376,30 +362,30 @@ std::string map_paf(const std::vector<triplet_t>& t_minimizers,
             std::to_string(ref_end) + "\t" +
             "*" + "\t" + //Number of residue matches
             std::to_string(end - start) + "\t" + //Alignment block length
-            "255\n"; //Mapping quality 
-
-
+            "255" + "\t" + //Mapping quality
+            (bool_cigar ? ("cg:Z:" + cigar + "\n") : "\n");
+    //SAM format
+    }else{ 
+      result += data_set[fobj]->name + "\t" +
+            "0" + "\t" + //FLAG
+            reference[ref_num]->name + "\t" +
+            std::to_string(ref_start + 1) + "\t" +
+            "255" + "\t" + //MAPQ
+            cigar + "\t" +
+            "*" + "\t" + //RNEXT
+            "0" + "\t" + //PNEXT
+            "0" + "\t" +  //TLEN
+            seq + "\t" +
+            "*\n"; //QUAL      
+    }
   }
-  // return sam;
-  return paf;
-  // return "";
+  return result;
 }
 
 int main (int argc, char **argv) {
   int optchr;
 
-  int match = 2;
-  int mismatch = -4;
-  int gap = -2;
-
-  int window_length = 10;
-  int k = 15;
-  int t = 2;
-  float f = 0.0002f;
-  bool bool_cigar = false;
-  int k_value = 1000;
-
-  while ((optchr = getopt_long(argc, argv, "hvm:g:M:k:w:t:cK:", long_options, NULL)) != -1) {
+  while ((optchr = getopt_long(argc, argv, "hvK:w:k:r:n:A:B:O:E:z:t:ca", long_options, NULL)) != -1) {
     switch (optchr) {
       case 'h': {
         help();
@@ -417,18 +403,6 @@ int main (int argc, char **argv) {
         }
         break;
       }
-      case 'M': {
-        match = atoi(optarg);
-        break;
-      }
-      case 'm': {
-        mismatch = atoi(optarg);
-        break;
-      }
-      case 'g': {
-        gap = atoi(optarg);
-        break;
-      }
       case 'w': {
         window_length = atoi(optarg);
         break;
@@ -437,8 +411,40 @@ int main (int argc, char **argv) {
         k = atoi(optarg);
         break;
       }
+      case 'r': {
+        bandwidth = atoi(optarg);
+        break;
+      }
+      case 'n': {
+        threshold = atoi(optarg);
+        break;
+      }
+      case 'A': {
+        match = atoi(optarg);
+        break;
+      }
+      case 'B': {
+        mismatch = atoi(optarg);
+        break;
+      }
+      case 'O': {
+        gap_open = atoi(optarg);
+        break;
+      }
+      case 'E': {
+        gap_extension = atoi(optarg);
+        break;
+      }
+      case 'z': {
+        z_drop = atoi(optarg);
+        break;
+      }
       case 'c': {
         bool_cigar = true;
+        break;
+      }
+      case 'a': {
+        sam_format = true;
         break;
       }
       case 't': {
@@ -494,6 +500,23 @@ int main (int argc, char **argv) {
 
   fprintf(stderr, " Done!\n");
 
+  fprintf(stderr, "\nMapping process started with parameters:\n"
+                  "  k value        = %d\n"
+                  "  k              = %d\n"
+                  "  window length  = %d\n"
+                  "  bandwidth      = %d\n"
+                  "  min hits       = %d\n"
+                  "  threads        = %d\n",
+                  k_value, k, window_length, bandwidth, threshold, t);
+  if (bool_cigar || sam_format) {
+    fprintf(stderr, " Alignment\n"
+                    "  match          = %d\n"
+                    "  mismatch       = %d\n"
+                    "  gap open       = %d\n"
+                    "  gap extension  = %d\n"
+                    "  z drop         = %d\n",
+                    match, mismatch, gap_open, gap_extension, z_drop);
+  }
   // Print file stats
   // FastAQ::print_statistics(data_set, file1);
   // FastAQ::print_statistics(reference, file2);
@@ -502,7 +525,7 @@ int main (int argc, char **argv) {
 
     // Parallelized version of reference minimizers search
     std::shared_ptr<thread_pool::ThreadPool> thread_pool_ref = thread_pool::createThreadPool(t);
-    std::vector<std::future<std::vector<triplet_t>>> thread_futures_ref;
+    std::vector<std::future<std::vector<minimizer>>> thread_futures_ref;
 
     for (int tasks = 0; tasks < t - 1; ++tasks) {
       thread_futures_ref.emplace_back(thread_pool_ref->submit_task(brown::minimizers,
@@ -515,7 +538,7 @@ int main (int argc, char **argv) {
           reference[ref_num]->sequence.size() - (t - 1) * reference[ref_num]->sequence.size() / t,
           k, window_length));
 
-    std::vector<triplet_t> t_minimizers;
+    std::vector<minimizer> t_minimizers;
     for (int i = 0; i < t; ++i) {
       thread_futures_ref[i].wait();
       unsigned int offset = i * reference[ref_num]->sequence.size() / t;
@@ -526,30 +549,26 @@ int main (int argc, char **argv) {
     }
 
     // Regular version of reference minimizers search
-    // std::vector<triplet_t> t_minimizers = brown::minimizers(
+    // std::vector<minimizer> t_minimizers = brown::minimizers(
     //     reference[ref_num]->sequence.c_str(), reference[ref_num]->sequence.size(), k, window_length);
 
     prep_ref(t_minimizers, f);
     std::unordered_map<unsigned int, minimizer_index_t> ref_index = index_ref(t_minimizers);
 
     // prvih 250 - zbog testiranja
-    // std::cout << map_paf(std::ref(t_minimizers), std::ref(ref_index), std::ref(data_set), std::ref(reference),
-    //     k, window_length, match, mismatch, gap, 0, 250, k_value, bool_cigar, ref_num);
+    // std::cout << map_paf(std::ref(t_minimizers), std::ref(ref_index), std::ref(data_set), std::ref(reference), 0, 250, ref_num);
 
 
     // kod za visedretvenost
     std::shared_ptr<thread_pool::ThreadPool> thread_pool = thread_pool::createThreadPool(t);
-
     std::vector<std::future<std::string>> thread_futures;
 
     for (int tasks = 0; tasks < t - 1; ++tasks) {
       thread_futures.emplace_back(thread_pool->submit_task(map_paf, std::ref(t_minimizers), std::ref(ref_index),
-        std::ref(data_set), std::ref(reference),
-        k, window_length, match, mismatch, gap, tasks * data_set.size() / t, (tasks + 1) * data_set.size() / t, k_value, bool_cigar, ref_num));  
+        std::ref(data_set), std::ref(reference), tasks * data_set.size() / t, (tasks + 1) * data_set.size() / t, ref_num));  
     }
     thread_futures.emplace_back(thread_pool->submit_task(map_paf, std::ref(t_minimizers), std::ref(ref_index),
-        std::ref(data_set), std::ref(reference),
-        k, window_length, match, mismatch, gap, (t - 1) * data_set.size() / t, data_set.size(), k_value, bool_cigar, ref_num));
+        std::ref(data_set), std::ref(reference), (t - 1) * data_set.size() / t, data_set.size(), ref_num));
     
     for (auto& it : thread_futures) {
       it.wait();
