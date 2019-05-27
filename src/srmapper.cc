@@ -357,6 +357,9 @@ int main(int argc, char **argv) {
     parser.first->parse_objects(paired_reads.first, sample_bytes);
     parser.second->parse_objects(paired_reads.second, sample_bytes);
 
+    fastaq::FastAQ::print_statistics(paired_reads.first, reads_file1);
+    fastaq::FastAQ::print_statistics(paired_reads.second, reads_file2);
+
     infer_insert_size(ref_index, t_minimizers,
                       reference[0], paired_reads,
                       parameters);
