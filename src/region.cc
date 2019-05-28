@@ -50,12 +50,13 @@ bin_t extract_candidates(const std::vector<minimizer_hit_t>& hits, const uint32_
   uint32_t next = 0;
 
   for (uint32_t i = 0; i < hits.size(); ++i) {
-    if (std::get<1>(hits[i]) / region_size == current) {
+    uint32_t reg = std::get<1>(hits[i]) / region_size;
+    if (reg == current) {
       temp_c.push_back(hits[i]);
       continue;
     }
 
-    if (std::get<1>(hits[i]) / region_size == current + 1) {
+    if (reg == current + 1) {
       next = current + 1;
       temp_c.push_back(hits[i]);
       temp_n.push_back(hits[i]);
@@ -66,20 +67,32 @@ bin_t extract_candidates(const std::vector<minimizer_hit_t>& hits, const uint32_
       candidates[current] = std::move(temp_c);
     }
 
-    if (next == current + 1) {
-      current = next;
-      temp_c = std::move(temp_n);
-      temp_n.clear();
+    if (next == current + 1 && reg == next + 1) {
+      if (reg == next + 1) {
+        current = next;
+        next = reg;
+        temp_c.swap(temp_n);
+        temp_n = {hits[i]};
+      } else {
+        current = reg;
+        temp_c = {hits[i]};
+        if (temp_n.size() >= threshold) {
+          candidates[next] = std::move(temp_n);
+        }
+        temp_n = {};
+      }
     } else {
-      current = std::get<1>(hits[i]) / region_size;
-      temp_c.clear();
-      temp_c.push_back(hits[i]);
+      current = reg;
+      temp_c = {hits[i]};
     }
   }
 
   if (temp_c.size() >= threshold) {
     candidates[current] = std::move(temp_c);
   }
+  if (next == current + 1 && temp_n.size() >= threshold) {
+    candidates[next] = std::move(temp_n);
+  } 
 
   return candidates;
 }
