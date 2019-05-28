@@ -1,3 +1,4 @@
+#include <iostream>
 #include <vector>
 #include <unordered_map>
 #include <tuple>
@@ -67,22 +68,15 @@ bin_t extract_candidates(const std::vector<minimizer_hit_t>& hits, const uint32_
       candidates[current] = std::move(temp_c);
     }
 
-    if (next == current + 1 && reg == next + 1) {
-      if (reg == next + 1) {
-        current = next;
-        next = reg;
-        temp_c.swap(temp_n);
-        temp_n = {hits[i]};
-      } else {
-        current = reg;
-        temp_c = {hits[i]};
-        if (temp_n.size() >= threshold) {
-          candidates[next] = std::move(temp_n);
-        }
-        temp_n = {};
-      }
+    if (next == current + 1) {
+      current = next;
+      temp_c = std::move(temp_n);
+      temp_n = {};
+      --i;
+      continue;
     } else {
       current = reg;
+      temp_c.clear();
       temp_c = {hits[i]};
     }
   }
@@ -92,7 +86,7 @@ bin_t extract_candidates(const std::vector<minimizer_hit_t>& hits, const uint32_
   }
   if (next == current + 1 && temp_n.size() >= threshold) {
     candidates[next] = std::move(temp_n);
-  } 
+  }
 
   return candidates;
 }
