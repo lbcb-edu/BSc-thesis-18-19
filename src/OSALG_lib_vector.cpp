@@ -101,7 +101,7 @@ namespace OSALG_vector {
 	void init_first_triangle(std::vector<std::vector<matrix_element>> &mat, std::string const &seq1, std::string const &seq2) {
 		mat[0][0].f_arr[0] = mat[0][0].d_val = 0;
 		for (int i = 1; i < L + 2; ++i) {
-			mat[0][0].f_arr[i] = std::numeric_limits<int>::max();
+			mat[0][0].f_arr[i] = std::numeric_limits<int>::max() - OVERFLOW_CONTROL_VALUE;
 		}
 		mat[0][0].parent = STOP;
 		for (int i = 0; i <= TRIANGLE_SIZE; ++i) {
@@ -114,11 +114,11 @@ namespace OSALG_vector {
 
 	void init_last_triangle(std::vector<std::vector<matrix_element>> &mat, std::string const &seq1, std::string const &seq2) {
 		int c = 0;
-		for (int i = seq1.length() + 2; i <= seq1.length(); ++i) {
+		for (int i = seq1.length() - TRIANGLE_SIZE + 1; i <= seq1.length(); ++i) {
 			for (int j = seq2.length() - c; j <= seq2.length(); ++j) {
 				calculate_matrix_element(mat, i, j, seq1, seq2);
 			}
-			c++;
+			++c;
 		}
 	}
 
@@ -243,17 +243,13 @@ namespace OSALG_vector {
 
 		init_first_triangle(mat, seq1, seq2);
 
-		__m256i first_diagonal_d;
-		__m256i second_diagonal_d;
 		__m256i third_diagonal_d;
 
-		__m256i first_diagonal_f[L];
-		__m256i second_diagonal_f[L];
 		__m256i third_diagonal_f[L];
 
 		//i and j store third diagonal "location"
 		int i = 0;
-		int j = TRIANGLE_SIZE + 2;
+		int j = TRIANGLE_SIZE + 1;
 
 		__m256i insert_penalty_vec = _mm256_set1_epi32(u[0]);
 
@@ -268,24 +264,24 @@ namespace OSALG_vector {
 		int temp_arr[VECTOR_SIZE];
 
 		//Loops through diagonals
-		while(i != seq1.length() - TRIANGLE_SIZE && j != seq2.length()) {// TO DO STOP CONDITION
-
+		while(i != seq1.length() - TRIANGLE_SIZE) {
 			int k = 0;
 			//Loop through specific diagonal
-			while(i + k <= seq1.length() && j - k >= 0) { //TO DO STOP CONDITION
+			while(i + k <= seq1.length() && j - k >= 0) {
 
 				fill_array_from_diagonal_dvals(i + k - 1, j - k, mat, temp_arr, seq1, seq2);
-				second_diagonal_d = _mm256_load_si256((__m256i *)&temp_arr[0]);
+				__m256i second_diagonal_d = _mm256_load_si256((__m256i *)&temp_arr[0]);
 
 				//Going through F[0], ..., F[L]
 				//DELETION
 				for(int h = 0; h < L; ++h) {
-					fill_array_from_diagonal_farr(i + k - 1, j - k, mat, temp_arr, h, seq1, seq2);
-					second_diagonal_f[h] = _mm256_load_si256((__m256i *)&temp_arr[0]);
+					fill_array_from_diagonal_farr(i + k - 1, j - k, mat, temp_arr, h + 1, seq1, seq2);
+					__m256i second_diagonal_f = _mm256_load_si256((__m256i *)&temp_arr[0]);
 
-					third_diagonal_f[h] = _mm256_add_epi32(second_diagonal_d, v_vecs[h - 1]);
-					third_diagonal_f[h] = _mm256_min_epi32(third_diagonal_f[h], second_diagonal_f[h]);
-					third_diagonal_f[h] = _mm256_add_epi32(third_diagonal_f[h], u_vecs[h - 1]);
+
+					third_diagonal_f[h] = _mm256_add_epi32(second_diagonal_d, v_vecs[h]);
+					third_diagonal_f[h] = _mm256_min_epi32(third_diagonal_f[h], second_diagonal_f);
+					third_diagonal_f[h] = _mm256_add_epi32(third_diagonal_f[h], u_vecs[h]);
 
 					if(h == 0) {
 						third_diagonal_d = third_diagonal_f[h];
@@ -299,10 +295,14 @@ namespace OSALG_vector {
 				__m256i diff_vec = _mm256_load_si256((__m256i *)&temp_arr[0]);
 
 				fill_array_from_diagonal_dvals(i + k - 1, j - k - 1, mat, temp_arr, seq1, seq2);
-				first_diagonal_d = _mm256_load_si256((__m256i *)&temp_arr[0]);
+				__m256i first_diagonal_d = _mm256_load_si256((__m256i *)&temp_arr[0]);
 
 				__m256i third_diagonal_f0 = _mm256_add_epi32(first_diagonal_d, diff_vec);
 				third_diagonal_d = _mm256_min_epi32(third_diagonal_f0, third_diagonal_d);
+				
+				//for(int l = 0; l < 8; ++l) {
+				//	printf("temp1: %d\n", ((int*)&third_diagonal_d)[l]);
+				//}
 
 				//INSERTION
 				fill_array_from_diagonal_dvals(i + k, j - k - 1, mat, temp_arr, seq1, seq2);
@@ -316,10 +316,10 @@ namespace OSALG_vector {
 				int* third_diag_f_arr_1 = (int*)&third_diagonal_f[1];
 			
 				for(int h = 0; h < VECTOR_SIZE; ++h) {
-					if(i + h <= seq1.length() && j - h >= 0) {
+					if(i + k + h <= seq1.length() && j - k - h >= 0) {
 						mat[i + k + h][j - k - h].d_val = third_diag_d_arr[h];
-						mat[i + k + h][j - k - h].f_arr[0] = third_diag_f_arr_0[h];
-						mat[i + k + h][j - k - h].f_arr[1] = third_diag_f_arr_1[h];
+						mat[i + k + h][j - k - h].f_arr[1] = third_diag_f_arr_0[h];
+						mat[i + k + h][j - k - h].f_arr[2] = third_diag_f_arr_1[h];
 					} else {
 						break;
 					}
@@ -327,18 +327,16 @@ namespace OSALG_vector {
 
 				k += VECTOR_SIZE;
 			}
-			
-			if(j != seq2.length()) {
+			if(j < seq2.length()) {
 				++j;
 			} else {
 				++i;
 			}
 		}
 		
-		//init_last_triangle(mat, seq1, seq2);
+		init_last_triangle(mat, seq1, seq2);
 
 		//construct_CIGAR(mat, seq1, seq2, cigar);
-
 		return 0;
 	}
 }
