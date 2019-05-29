@@ -15,11 +15,11 @@
 #include "brown_minimizers.hpp"
 #include "sam.hpp"
 
-// Clip end of sequence that contains multiple Ns
+// Clip ends of sequence that contain multiple Ns
 // Args: seq - sequence to be clipped
 //       k   - k-mer length
 //       w   - window length
-// Return: size of clipping; if negative, sequence should be rejected
+// Return: size of clippings; if negative, sequence should be rejected
 std::pair<int32_t, int32_t> clip(const std::string& seq, const uint32_t k, const uint32_t w) {
   std::size_t found1 = seq.find_first_of("ACGT");
   if (found1 == std::string::npos || seq.size() - found1 < w + k - 1) {

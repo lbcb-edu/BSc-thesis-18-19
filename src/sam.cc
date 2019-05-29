@@ -101,6 +101,7 @@ std::string sam_format(const mapping_t& m) {
 //       ref        - reference sequence
 //       region     - mapping region
 //       parameters - mapping parameters
+//       clipped    - query sequence clipping
 // Return: mapping
 mapping_t single_mapping(const std::string& qname, const std::string& query, 
                          const std::string& qual, const std::string& rname, 
@@ -158,6 +159,8 @@ mapping_t single_mapping(const std::string& qname, const std::string& query,
 //       ref         - reference sequence
 //       region_pair - paired mapping region
 //       parameters  - mapping parameters
+//       clipped1    - query1 sequence clipping
+//       clipped2    - query2 sequence clipping
 // Return: paired mapping
 std::pair<mapping_t, mapping_t> pair_mapping(const std::string& qname,
     const std::string& query1, const std::string& qual1, const std::string& query2, const std::string& qual2,
