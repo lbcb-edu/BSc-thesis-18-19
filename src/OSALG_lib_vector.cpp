@@ -3,6 +3,8 @@
 #include <vector>
 #include <limits>
 #include <unordered_map>
+#include <immintrin.h> //AVX
+
 #include "OSALG_lib.h"
 
 #define N_BORDER 30
@@ -10,6 +12,10 @@
 #define MATCH_SCORE -2
 #define MISMATCH_SCORE 4
 #define DEFAULT_BANDWITH 16
+#define TRIANGLE_SIZE 8
+#define VECTOR_SIZE 8
+
+#define OVERFLOW_CONTROL_VALUE 100
 
 #define STOP -1
 #define MATCH 0
@@ -75,7 +81,7 @@ namespace OSALG_vector {
 				}
 			}
 
-			mat[i][j].f_arr[L + 1] = std::min(mat[i][j - 1].d_val + v[0], mat[i][j - 1].f_arr[L + 1]) + u[0];
+			mat[i][j].f_arr[L + 1] = mat[i][j - 1].d_val + u[0];
 
 			if(mat[i][j].d_val > mat[i][j].f_arr[L + 1]) {
 				mat[i][j].d_val = mat[i][j].f_arr[L + 1];
@@ -92,35 +98,23 @@ namespace OSALG_vector {
 		}
 	}
 
-	void init_first_triangle(std::vector<std::vector<matrix_element>> &mat, int bandwidth, std::string const &seq1, std::string const &seq2, diagonal_vector &first_diag, diagonal_vector &second_diag) {
+	void init_first_triangle(std::vector<std::vector<matrix_element>> &mat, std::string const &seq1, std::string const &seq2) {
 		mat[0][0].f_arr[0] = mat[0][0].d_val = 0;
 		for (int i = 1; i < L + 2; ++i) {
 			mat[0][0].f_arr[i] = std::numeric_limits<int>::max();
 		}
 		mat[0][0].parent = STOP;
-		for (int i = 0; i <= seq1.length(); ++i) {
-			for (int j = 0; j <= seq2.length(); ++j) {
+		for (int i = 0; i <= TRIANGLE_SIZE; ++i) {
+			for (int j = 0; j <= TRIANGLE_SIZE - i; ++j) {
 				if (i == 0 && j == 0) continue;
 				calculate_matrix_element(mat, i, j, seq1, seq2);
 			}
 		}
-
-		first_diag.x = 0;
-		first_diag.y = bandwidth - 1;
-
-		if ((mat[first_diag.x][first_diag.y].d_val <= mat[first_diag.x + bandwidth - 1][first_diag.y - bandwidth + 1].d_val && first_diag.x + bandwidth <= seq1.length()) || first_diag.y == seq2.length()) {
-			second_diag.x = first_diag.x + 1;
-			second_diag.y = first_diag.y;
-		}
-		else {
-			second_diag.x = first_diag.x;
-			second_diag.y = first_diag.y + 1;
-		}
 	}
 
-	void init_last_triangle(std::vector<std::vector<matrix_element>> &mat, int bandwidth, std::string const &seq1, std::string const &seq2) {
+	void init_last_triangle(std::vector<std::vector<matrix_element>> &mat, std::string const &seq1, std::string const &seq2) {
 		int c = 0;
-		for (int i = seq1.length() - bandwidth + 2; i <= seq1.length(); ++i) {
+		for (int i = seq1.length() + 2; i <= seq1.length(); ++i) {
 			for (int j = seq2.length() - c; j <= seq2.length(); ++j) {
 				calculate_matrix_element(mat, i, j, seq1, seq2);
 			}
@@ -198,6 +192,48 @@ namespace OSALG_vector {
 		cigar = std::to_string(counter) + lastChar + cigar;
 	}
 
+	void fill_array_from_diagonal_dvals(int i, int j, std::vector<std::vector<matrix_element>> const &mat, int *arr, std::string const &seq1, std::string const &seq2) {
+		
+		for(int k = 0; k < VECTOR_SIZE; ++k) {
+			int i_pos = i + k;
+			int j_pos = j - k;
+
+			if(i_pos < 0 || i_pos  > seq1.length() || j_pos < 0 || j_pos > seq2.length()) {
+				arr[k] = std::numeric_limits<int>::max() - OVERFLOW_CONTROL_VALUE;
+			} else {
+				arr[k] = mat[i + k][j - k].d_val;
+			}
+		}
+	}
+
+	void fill_array_from_diagonal_farr(int i, int j, std::vector<std::vector<matrix_element>> const &mat, int *arr, int level, std::string const &seq1, std::string const &seq2) {
+
+		for(int k = 0; k < VECTOR_SIZE; ++k) {
+			int i_pos = i + k;
+			int j_pos = j - k;
+
+			if(i_pos < 0 || i_pos  > seq1.length() || j_pos < 0 || j_pos > seq2.length()) {
+				arr[k] = std::numeric_limits<int>::max() - OVERFLOW_CONTROL_VALUE;
+			} else {
+				arr[k] = mat[i + k][j - k].f_arr[level];
+			}
+		}
+	}
+
+	void fill_array_with_diff(int i, int j, int *arr, std::string const &seq1, std::string const &seq2) {
+
+		for(int k = 0; k < VECTOR_SIZE; ++k) {
+			int i_pos = i + k;
+			int j_pos = j - k;
+
+			if(i_pos < 0 || i_pos  > seq1.length() || j_pos < 0 || j_pos > seq2.length()) {
+				arr[k] = 0;
+			} else {
+				arr[k] = (seq1[i_pos] == seq2[j_pos]) ? MATCH_SCORE : MISMATCH_SCORE;
+			}
+		}
+	}
+
 	int long_gaps_alignment(std::string const &seq1, std::string const &seq2, std::string &cigar, bool extended_cigar) {
 
 		std::vector<std::vector<matrix_element>> mat = std::vector<std::vector<matrix_element>>(seq1.length() + 1);
@@ -205,84 +241,103 @@ namespace OSALG_vector {
 			mat[i] = std::vector<matrix_element>(seq2.length() + 1);
 		}
 
-		int bandwidth = std::min(seq1.length(), seq2.length()) + 1;
-		diagonal_vector first_diag;
-		diagonal_vector second_diag;
-		diagonal_vector third_diag;
+		init_first_triangle(mat, seq1, seq2);
 
-		init_first_triangle(mat, bandwidth, seq1, seq2, first_diag, second_diag);
+		__m256i first_diagonal_d;
+		__m256i second_diagonal_d;
+		__m256i third_diagonal_d;
 
-		/*
-		while (!(third_diag.x == seq1.length() - bandwidth + 1 && third_diag.y == seq2.length())) {
-			bool downward = false;
+		__m256i first_diagonal_f[L];
+		__m256i second_diagonal_f[L];
+		__m256i third_diagonal_f[L];
 
-			if ((mat[second_diag.x][second_diag.y].d_val <= mat[second_diag.x + bandwidth - 1][second_diag.y - bandwidth + 1].d_val &&
-				(second_diag.x + bandwidth) <= seq1.length()) || (second_diag.y) == seq2.length()) {
-				downward = true;
-				third_diag.x = second_diag.x + 1;
-				third_diag.y = second_diag.y;
-			}
-			else {
-				third_diag.x = second_diag.x;
-				third_diag.y = second_diag.y + 1;
-			}
+		//i and j store third diagonal "location"
+		int i = 0;
+		int j = TRIANGLE_SIZE + 2;
 
-			for (int h = 0; h < bandwidth; ++h) {
-				int i = third_diag.x + h;
-				int j = third_diag.y - h;
+		__m256i insert_penalty_vec = _mm256_set1_epi32(u[0]);
 
-				if (h == 0) {
-					if (downward) {
-						calculate_matrix_element(mat, i, j, seq1, seq2);
-					}
-					else {
-						mat[i][j].f_arr[0] = mat[i][j].d_val = (first_diag.x == third_diag.x - 1 && first_diag.y == third_diag.y - 1) ? mat[i - 1][j - 1].d_val + diff(seq1[i - 1], seq2[j - 1]) : std::numeric_limits<int>::max();
-						mat[i][j].parent = MATCH;
+		__m256i u_0_vec = _mm256_set1_epi32(u[0]);
+		__m256i u_1_vec = _mm256_set1_epi32(u[1]);
+		__m256i v_0_vec = _mm256_set1_epi32(v[0]);
+		__m256i v_1_vec = _mm256_set1_epi32(v[1]);
 
-						for (int k = 1; k <= L; ++k) {
-							mat[i][j].f_arr[k] = std::numeric_limits<int>::max();
-						}
+		__m256i v_vecs[] = {v_0_vec, v_1_vec};
+		__m256i u_vecs[] = {u_0_vec, u_1_vec};
 
-						mat[i][j].f_arr[L + 1] = std::min(mat[i][j - 1].d_val + v[0], mat[i][j - 1].f_arr[L + 1]) + u[0];
+		int temp_arr[VECTOR_SIZE];
 
-						if (mat[i][j].d_val > mat[i][j].f_arr[L + 1]) {
-							mat[i][j].d_val = mat[i][j].f_arr[L + 1];
-							mat[i][j].parent = INSERT;
-						}
-					}
-				}
-				else if (h == bandwidth - 1) {
-					if (downward) {
-						mat[i][j].f_arr[0] = mat[i][j].d_val = (first_diag.x + bandwidth - 1 == third_diag.x - 1 + bandwidth - 1 && first_diag.y - bandwidth + 1 == third_diag.y - 1 - bandwidth + 1) ? mat[i - 1][j - 1].d_val + diff(seq1[i - 1], seq2[j - 1]) : std::numeric_limits<int>::max();
+		//Loops through diagonals
+		while(i != seq1.length() - TRIANGLE_SIZE && j != seq2.length()) {// TO DO STOP CONDITION
 
-						mat[i][j].parent = MATCH;
+			int k = 0;
+			//Loop through specific diagonal
+			while(i + k <= seq1.length() && j - k >= 0) { //TO DO STOP CONDITION
 
-						for (int k = 1; k <= L; ++k) {
-							mat[i][j].f_arr[k] = std::min(mat[i - 1][j].d_val + v[k - 1], mat[i - 1][j].f_arr[k]) + u[k - 1];
+				fill_array_from_diagonal_dvals(i + k - 1, j - k, mat, temp_arr, seq1, seq2);
+				second_diagonal_d = _mm256_load_si256((__m256i *)&temp_arr[0]);
 
-							if (mat[i][j].d_val >= mat[i][j].f_arr[k]) {
-								mat[i][j].d_val = mat[i][j].f_arr[k];
-								mat[i][j].parent = DELETE;
-							}
-						}
+				//Going through F[0], ..., F[L]
+				//DELETION
+				for(int h = 0; h < L; ++h) {
+					fill_array_from_diagonal_farr(i + k - 1, j - k, mat, temp_arr, h, seq1, seq2);
+					second_diagonal_f[h] = _mm256_load_si256((__m256i *)&temp_arr[0]);
 
-						mat[i][j].f_arr[L + 1] = std::numeric_limits<int>::max();
-					}
-					else {
-						calculate_matrix_element(mat, i, j, seq1, seq2);
+					third_diagonal_f[h] = _mm256_add_epi32(second_diagonal_d, v_vecs[h - 1]);
+					third_diagonal_f[h] = _mm256_min_epi32(third_diagonal_f[h], second_diagonal_f[h]);
+					third_diagonal_f[h] = _mm256_add_epi32(third_diagonal_f[h], u_vecs[h - 1]);
+
+					if(h == 0) {
+						third_diagonal_d = third_diagonal_f[h];
+					} else {
+						third_diagonal_d = _mm256_min_epi32(third_diagonal_f[h], third_diagonal_d);
 					}
 				}
-				else {
-					calculate_matrix_element(mat, i, j, seq1, seq2);
+
+				//MATCH/MISMATCH
+				fill_array_with_diff(i + k - 1, j - k - 1, temp_arr, seq1, seq2);
+				__m256i diff_vec = _mm256_load_si256((__m256i *)&temp_arr[0]);
+
+				fill_array_from_diagonal_dvals(i + k - 1, j - k - 1, mat, temp_arr, seq1, seq2);
+				first_diagonal_d = _mm256_load_si256((__m256i *)&temp_arr[0]);
+
+				__m256i third_diagonal_f0 = _mm256_add_epi32(first_diagonal_d, diff_vec);
+				third_diagonal_d = _mm256_min_epi32(third_diagonal_f0, third_diagonal_d);
+
+				//INSERTION
+				fill_array_from_diagonal_dvals(i + k, j - k - 1, mat, temp_arr, seq1, seq2);
+				second_diagonal_d = _mm256_load_si256((__m256i *)&temp_arr[0]);
+
+				__m256i third_diagonal_ins = _mm256_add_epi32(second_diagonal_d, insert_penalty_vec);
+				third_diagonal_d = _mm256_min_epi32(third_diagonal_ins, third_diagonal_d);
+				
+				int* third_diag_d_arr = (int*)&third_diagonal_d;
+				int* third_diag_f_arr_0 = (int*)&third_diagonal_f[0];
+				int* third_diag_f_arr_1 = (int*)&third_diagonal_f[1];
+			
+				for(int h = 0; h < VECTOR_SIZE; ++h) {
+					if(i + h <= seq1.length() && j - h >= 0) {
+						mat[i + k + h][j - k - h].d_val = third_diag_d_arr[h];
+						mat[i + k + h][j - k - h].f_arr[0] = third_diag_f_arr_0[h];
+						mat[i + k + h][j - k - h].f_arr[1] = third_diag_f_arr_1[h];
+					} else {
+						break;
+					}
 				}
+
+				k += VECTOR_SIZE;
 			}
-			first_diag = second_diag;
-			second_diag = third_diag;
+			
+			if(j != seq2.length()) {
+				++j;
+			} else {
+				++i;
+			}
 		}
-		*/
-		//init_last_triangle(mat, bandwidth, seq1, seq2);
+		
+		//init_last_triangle(mat, seq1, seq2);
 
-		construct_CIGAR(mat, seq1, seq2, cigar);
+		//construct_CIGAR(mat, seq1, seq2, cigar);
 
 		return 0;
 	}
