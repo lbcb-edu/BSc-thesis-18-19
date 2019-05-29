@@ -20,15 +20,19 @@
 //       k   - k-mer length
 //       w   - window length
 // Return: size of clipping; if negative, sequence should be rejected
-int32_t clip(const std::string& seq, const uint32_t k, const uint32_t w) {
-  std::size_t found = seq.find("NNN", 0);
-  if (found == std::string::npos) {
-    return 0;
+std::pair<int32_t, int32_t> clip(const std::string& seq, const uint32_t k, const uint32_t w) {
+  std::size_t found1 = seq.find_first_of("ACGT");
+  if (found1 == std::string::npos || seq.size() - found1 < w + k - 1) {
+    return std::make_pair(-1, -1);
   }
-  if (found < (w + k - 1)) {
-    return -1;
+  std::size_t found2 = seq.find("NNN", found1);
+  if (found2 == std::string::npos) {
+    return std::make_pair(found1, 0);
   }
-  return seq.size() - found;
+  if (found2 - found1 < w + k - 1) {
+    return std::make_pair(-1, -1);
+  }
+  return std::make_pair(found1, seq.size() - found2);
 }
 
 // Process (as) single-end sequencing read
@@ -44,12 +48,13 @@ std::vector<mapping_t> process_single(const std::unordered_map<uint64_t, index_p
                                       const std::unique_ptr<fastaq::FastAQ>& read, const mapping_params_t& parameters) {
   std::vector<mapping_t> mappings;
 
-  int32_t clipped = clip(read->sequence, parameters.k, parameters.w);
-  if (clipped < 0) {
+  std::pair<int32_t, int32_t> clipped = clip(read->sequence, parameters.k, parameters.w);
+  if (clipped.first < 0) {
     return mappings;
   }
 
-  std::vector<minimizer_t> q_minimizers = brown::minimizers(read->sequence.c_str(), read->sequence.size() - clipped,
+  std::vector<minimizer_t> q_minimizers = brown::minimizers(read->sequence.c_str() + clipped.first, 
+                                                            read->sequence.size() - clipped.first - clipped.second,
                                                             parameters.k, parameters.w);
 
   split_hits_t hits;
@@ -129,7 +134,9 @@ std::vector<mapping_t> process_single(const std::unordered_map<uint64_t, index_p
 void process_pairs(std::vector<std::pair<mapping_t, mapping_t>>& mappings,
     paired_checked_t& checked, const std::unique_ptr<fastaq::FastAQ>& reference, 
     const std::unique_ptr<fastaq::FastAQ>& first, const std::unique_ptr<fastaq::FastAQ>& second,
-    const mapping_params_t& parameters, const int32_t clipped1, const int32_t clipped2) {
+    const mapping_params_t& parameters, 
+    const std::pair<int32_t, int32_t>& clipped1, 
+    const std::pair<int32_t, int32_t>& clipped2) {
   std::unordered_set<uint32_t> processed;
 
   for (uint32_t j = 0; j < checked.first.size(); ++j) {
@@ -307,9 +314,9 @@ std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
   std::string sam;
 
   for (uint32_t i = t_start; i < t_end; ++i) {
-    int32_t clipped1 = clip(paired_reads.first[i]->sequence, parameters.k, parameters.w);
-    int32_t clipped2 = clip(paired_reads.second[i]->sequence, parameters.k, parameters.w);
-    if (clipped1 < 0 || clipped2 < 0) {
+    std::pair<int32_t, int32_t> clipped1 = clip(paired_reads.first[i]->sequence, parameters.k, parameters.w);
+    std::pair<int32_t, int32_t> clipped2 = clip(paired_reads.second[i]->sequence, parameters.k, parameters.w);
+    if (clipped1.first < 0 || clipped2.first < 0) {
       sam += unmapped_sam(paired_reads.first[i]->name, paired_reads.first[i]->sequence,
                           paired_reads.first[i]->quality, 1, 1, 0)
              + unmapped_sam(paired_reads.second[i]->name, paired_reads.second[i]->sequence, 
@@ -317,11 +324,11 @@ std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
       continue;
     }
 
-    paired_minimizers_t p_minimizers(brown::minimizers(paired_reads.first[i]->sequence.c_str(),
-                                                       paired_reads.first[i]->sequence.size() - clipped1,
+    paired_minimizers_t p_minimizers(brown::minimizers(paired_reads.first[i]->sequence.c_str() + clipped1.first,
+                                                       paired_reads.first[i]->sequence.size() - clipped1.first - clipped1.second,
                                                        parameters.k, parameters.w),
-                                     brown::minimizers(paired_reads.second[i]->sequence.c_str(),
-                                                       paired_reads.second[i]->sequence.size() - clipped2,
+                                     brown::minimizers(paired_reads.second[i]->sequence.c_str() + clipped2.first,
+                                                       paired_reads.second[i]->sequence.size() - clipped2.first - clipped2.second,
                                                        parameters.k, parameters.w));
 
     split_hits_t hits1;
