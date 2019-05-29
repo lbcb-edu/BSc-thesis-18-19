@@ -21,7 +21,7 @@
 //       w   - window length
 // Return: size of clipping; if negative, sequence should be rejected
 int32_t clip(const std::string& seq, const uint32_t k, const uint32_t w) {
-  std::size_t found = seq.find("NN", 10);
+  std::size_t found = seq.find("NNN", 0);
   if (found == std::string::npos) {
     return 0;
   }
@@ -171,6 +171,13 @@ void process_pairs(std::vector<std::pair<mapping_t, mapping_t>>& mappings,
   }
 }
 
+// Infer insert size based on relatively good mappings of paired-end reads mapped
+// as single-end
+// Args: ref_index    - map of minimizer values to positions in target minimizers list
+//       t_minimizers - list of target minimizers
+//       reference    - FastAQ representation of reference
+//       paired_reads - pair of lists of FastAQ representations of paired reads
+//       parameters   - mapping parameters
 void infer_insert_size(const std::unordered_map<uint64_t, index_pos_t>& ref_index, 
                        const std::vector<minimizer_t>& t_minimizers,
                        const std::unique_ptr<fastaq::FastAQ>& reference, const paired_reads_t& paired_reads,

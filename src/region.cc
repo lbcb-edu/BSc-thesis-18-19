@@ -71,13 +71,13 @@ bin_t extract_candidates(const std::vector<minimizer_hit_t>& hits, const uint32_
     if (next == current + 1) {
       current = next;
       temp_c = std::move(temp_n);
-      temp_n = {};
+      temp_n.clear();
       --i;
       continue;
     } else {
       current = reg;
       temp_c.clear();
-      temp_c = {hits[i]};
+      temp_c.push_back(hits[i]);
     }
   }
 
