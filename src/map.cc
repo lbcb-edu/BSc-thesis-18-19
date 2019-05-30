@@ -194,9 +194,9 @@ void infer_insert_size(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
   temp.band = -1;
 
   std::vector<uint32_t> ins;
-  ins.reserve(2000);
+  ins.reserve(50000);
 
-  for (uint32_t i = 0; ins.size() < 2000; ++i) {
+  for (uint32_t i = 0; ins.size() < 50000; ++i) {
     std::vector<mapping_t> ms1 = process_single(ref_index, t_minimizers, reference, paired_reads.first[i], temp);
     std::vector<mapping_t> ms2 = process_single(ref_index, t_minimizers, reference, paired_reads.second[i], temp);
     if (ms1.size() && ms2.size() && ms1[0].mapq > 5 && ms2[0].mapq > 5) {
