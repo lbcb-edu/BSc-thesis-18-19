@@ -161,7 +161,7 @@ int main(int argc, char **argv) {
   mapping_params_t parameters;
   parameters.all = false;
   parameters.mch = 1;
-  parameters.mis = -2;
+  parameters.mis = 2;
   parameters.gapo = 2;
   parameters.gape = 1;
   parameters.band = -1;

@@ -25,8 +25,8 @@ std::unordered_map<uint8_t, uint8_t> c = {{'C', 0}, {'A', 1}, {'T', 2}, {'U', 2}
 std::tuple<uint32_t, int32_t, std::string> ksw2(const char* target, const uint32_t t_len, 
                                                 const char* query, const uint32_t q_len, 
                                                 const mapping_params_t& parameters) {
-  int a = parameters.mch;
-  int b = parameters.mis;
+  int a = parameters.mch > 0 ? parameters.mch : -parameters.mch;
+  int b = parameters.mis < 0 ? parameters.mis : -parameters.mis;
   int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
   uint8_t *ts, *qs;
   ksw_extz_t ez;
@@ -44,7 +44,7 @@ std::tuple<uint32_t, int32_t, std::string> ksw2(const char* target, const uint32
 
   ksw_extz2_sse(0, q_len, qs, t_len, ts, 5, mat, 
                 parameters.gapo, parameters.gape, 
-                (parameters.band == -2 ? q_len / 2 : parameters.band), -1, 0, 0, &ez);
+                (parameters.band == -2 ? 0.1 * q_len : parameters.band), -1, 0, 0, &ez); // Set band width to 10% of query length
 
   std::string cigar;
   uint32_t matches = 0;
