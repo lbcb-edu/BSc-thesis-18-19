@@ -63,6 +63,11 @@ bool bool_cigar = false;
 bool sam_format = false;
 int t = 3;
 
+unsigned int wrong_size = 0;
+unsigned int no_start_or_end = 0;
+unsigned int no_start = 0;
+unsigned int no_end = 0;
+
 static struct option long_options[] = {
   {"help", no_argument, NULL, 'h'},
   {"version", no_argument, NULL, 'v'},
@@ -180,7 +185,10 @@ std::string map_paf(
   for (unsigned int fobj = t_begin; fobj < t_end; fobj++) {
     unsigned int sequence_length = data_set[fobj]->sequence.size();
 
-    if(sequence_length < (unsigned) (2 * k_value)) continue; //ovo netreba jer su file-ovi vec filtrirani
+    if(sequence_length < (unsigned) (2 * k_value)){
+      wrong_size++;
+      continue;
+    } 
 
     std::vector<minimizer> start_minimizers = brown::minimizers(data_set[fobj]->sequence.c_str(), k_value, k, window_length);
     std::vector<minimizer> end_minimizers = brown::minimizers(data_set[fobj]->sequence.substr(sequence_length - k_value - 1, k_value).c_str(), k_value, k, window_length);
@@ -221,7 +229,7 @@ std::string map_paf(
 
       //ako nema pocetka ni kraja preskoci
       if(!bool_start && !bool_end){
-        // printf("%s PRESKACEM, nema niceg\n", data_set[fobj]->name.c_str());
+        no_start_or_end++;
         continue;
       }
 
@@ -251,7 +259,7 @@ std::string map_paf(
 
         //ako nije nista nadeno preskoci
         if(!bool_found_something){
-          // printf("%s PRESKACEM, ima pocetak, ali nije nadeno\n", data_set[fobj]->name.c_str());
+          no_end++;
           continue;
         }
       }
@@ -282,7 +290,7 @@ std::string map_paf(
 
         //ako nije nista nadeno preskoci
         if(!bool_found_something){
-          // printf("%s PRESKACEM, ima kraj, ali nije nadeno\n", data_set[fobj]->name.c_str());
+          no_start++;
           continue;
         }
       }
@@ -532,7 +540,6 @@ int main (int argc, char **argv) {
   fprintf(stderr,"\n");
 
   for(unsigned int ref_num = 0; ref_num < reference.size(); ref_num++){
-
     std::shared_ptr<thread_pool::ThreadPool> thread_pool_ref = thread_pool::createThreadPool(t);
     std::vector<std::future<std::vector<minimizer>>> thread_futures_ref;
 
@@ -575,6 +582,13 @@ int main (int argc, char **argv) {
       std::cout << it.get();
     }
   }
+
+  fprintf(stderr, "Number of sequences that have:\n");
+  fprintf(stderr, "  - too small size: %u\n", wrong_size);
+  fprintf(stderr, "  - no start and no end: %u\n", no_start_or_end);
+  fprintf(stderr, "  - start but do not have end: %u\n", no_end);
+  fprintf(stderr, "  - end but do not have start: %u\n", no_start);
+  fprintf(stderr, "\n");
 
   auto end_time = std::chrono::steady_clock::now();
   auto interval1 = std::chrono::duration_cast<std::chrono::duration<double>>(loading_time - start_time);
