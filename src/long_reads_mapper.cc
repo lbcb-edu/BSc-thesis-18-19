@@ -5,7 +5,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
-#include <set>
+#include <unordered_set>
 #include <string>
 #include <limits>
 #include <ctime>
@@ -16,13 +16,14 @@
 #include <map>
 #include <algorithm>
 #include <cstring>
+#include <chrono>
 
 #include "long_reads_mapper.hpp"
 #include "bioparser/bioparser.hpp"
 #include "thread_pool/thread_pool.hpp"
-#include "brown_minimizers.hpp"
 #include "ksw2.h"
 
+#include "brown_minimizers.hpp"
 #include "fastaq.hpp"
 #include "index.hpp"
 #include "util.hpp"
@@ -32,10 +33,16 @@ typedef std::pair<unsigned int, unsigned int> minimizer_index_t; // position, am
 typedef std::pair<unsigned int, unsigned int> minimizer_hit_t; // query position, reference position
 typedef std::pair<unsigned int, int> region_hits; //region number, number of hits
 
-const std::set<std::string> fasta_formats = {".fasta", ".fa", ".fasta.gz", ".fa.gz"};
-const std::set<std::string> fastq_formats = {".fastq", ".fq", ".fastq.gz", ".fq.gz"};
+// bioparser ptr
+typedef std::unique_ptr<bioparser::Parser<FastAQ>> parser_ptr_t;
+
+const std::unordered_set<std::string> fasta_formats = {".fasta", ".fa", ".fasta.gz", ".fa.gz"};
+const std::unordered_set<std::string> fastq_formats = {".fastq", ".fq", ".fastq.gz", ".fq.gz"};
 
 std::map<char, char> complement_map = {{'C', 'G'}, {'A', 'T'}, {'T', 'A'}, {'U', 'A'}, {'G', 'C'}};
+
+// Sample size in bytes used for insert size inferrence
+constexpr uint32_t sample_bytes = 512 * 1024 * 1024;
 
 int k_value = 1000;
 float f = 0.001f; // za odbacivanje minimizera
@@ -78,8 +85,8 @@ static struct option long_options[] = {
 void help(void) {
   printf("long_reads_mapper - for mapping long fragments on reference genome.\n\n"
          "Usage: long_reads_mapper [OPTIONS] [file1 file2]\n"
-         "file1 - FASTA/FASTQ file containing a set of fragments\n"
-         "file2 - FASTA file containing reference genome\n\n"
+         "file1 - FASTA file containing reference genome\n\n"
+         "file2 - FASTA/FASTQ file containing a set of fragments\n"
          "Supported file extensions: .fasta\n"
          "                           .fa\n"
          "                           .fastq\n"
@@ -137,10 +144,14 @@ void version(void) {
   );
 }
 
-bool contains_extension(const std::string file, const std::set<std::string> &extensions) {
-  for (const auto& it: extensions) {
-    if (file.size() > it.size()) {
-      if (file.compare(file.size()-it.size(), std::string::npos, it) == 0) {
+// Check file extension
+// Args: filename   - name of file to be checked for extension
+//       extensions - set of accepted extensions
+// Return: extension accepted or not accepted
+bool check_extension(const std::string& filename, const std::unordered_set<std::string>& extensions) {
+  for (const auto& it : extensions) {
+    if (filename.size() > it.size()) {
+      if (filename.compare(filename.size()-it.size(), std::string::npos, it) == 0) {
         return true;
       }
     }
@@ -398,7 +409,7 @@ int main (int argc, char **argv) {
       case 'K': {
         k_value = atoi(optarg);
         if(k_value <= 0){
-          fprintf(stderr, "[mapper] error: kvalue must be positive!\n"); 
+          fprintf(stderr, "[ERROR]: kvalue must be positive!\n"); 
           exit(1); 
         }
         break;
@@ -450,57 +461,58 @@ int main (int argc, char **argv) {
       case 't': {
         t = atoi(optarg);
         if(t < 1){
-          fprintf(stderr, "[mapper] error: t must be positive!\n"); 
+          fprintf(stderr, "[ERROR]: t must be positive!\n"); 
           exit(1); 
         }
         break;
       }
       default: {
-        fprintf(stderr, "[mapper] error: Unknown option. Type %s --help for usage.\n", argv[0]);
+        fprintf(stderr, "[ERROR]: Unknown option. Type %s --help for usage.\n", argv[0]);
         exit(1);
       }
     }
   }
 
   if (argc - optind != 2) {
-    fprintf(stderr, "[mapper] error: Expected 2 mapping arguments! Use --help for usage.\n");
+    fprintf(stderr, "[ERROR]: Expected 2 arguments! Use --help for usage.\n");
     exit(1);
   }
 
-  // Load files
-  fprintf(stderr, "\nLoading files...");
+  auto start_time = std::chrono::steady_clock::now();
 
-  std::string file1 (argv[optind]);
-  std::string file2 (argv[optind+1]);
+  std::string reference_file(argv[optind]);
+  std::string data_file(argv[optind + 1]);
 
-  int file1_format = 0;
-  int file2_format = 0;
-
-  if (contains_extension(file1, fasta_formats)) {
-    file1_format = 1;
-  } else if (contains_extension(file1, fastq_formats)) {
-    file1_format = 2;
+  if (!check_extension(reference_file, fasta_formats)) {
+      fprintf(stderr, "[ERROR]: Unsupported reference file format.\n");
+      exit(1);
+  }
+    if (!check_extension(data_file, fasta_formats) && !check_extension(data_file, fastq_formats)) {
+      fprintf(stderr, "[ERROR]: Unsupported data file format.\n");
+      exit(1);
   }
 
-  file2_format = contains_extension(file2, fasta_formats);
-
-  if ( !(file1_format && file2_format) ) {
-    fprintf(stderr, "[mapper] error: Unsupported format(s)! Check --help for supported file formats.\n");
-    exit(1);
-  }
-
-  fprintf(stderr, " Done!\n\nParsing files...");
-
-  // Parse files
-  std::vector<std::unique_ptr<FastAQ>> data_set;
   std::vector<std::unique_ptr<FastAQ>> reference;
+  parser_ptr_t ref_parser = bioparser::createParser<bioparser::FastaParser, FastAQ>(reference_file);
+  ref_parser->parse_objects(reference, -1);
 
-  FastAQ::parse(data_set, file1, file1_format);
-  FastAQ::parse(reference, file2, file2_format);
+  std::vector<std::unique_ptr<FastAQ>> data_set;
+  parser_ptr_t data_parser;
+  if(check_extension(data_file, fasta_formats)) {
+    data_parser = bioparser::createParser<bioparser::FastaParser, FastAQ>(data_file);
+  }else {
+    data_parser = bioparser::createParser<bioparser::FastqParser, FastAQ>(data_file);
+  }
+  data_parser->parse_objects(data_set, -1);
 
-  fprintf(stderr, " Done!\n");
+  auto loading_time = std::chrono::steady_clock::now();
 
-  fprintf(stderr, "\nMapping process started with parameters:\n"
+  FastAQ::print_statistics(reference, reference_file);
+  fprintf(stderr,"\n");
+  FastAQ::print_statistics(data_set, data_file);
+  fprintf(stderr,"\n");
+
+  fprintf(stderr, "Mapping process started with parameters:\n"
                   "  k value        = %d\n"
                   "  k              = %d\n"
                   "  window length  = %d\n"
@@ -517,13 +529,10 @@ int main (int argc, char **argv) {
                     "  z drop         = %d\n",
                     match, mismatch, gap_open, gap_extension, z_drop);
   }
-  // Print file stats
-  // FastAQ::print_statistics(data_set, file1);
-  // FastAQ::print_statistics(reference, file2);
+  fprintf(stderr,"\n");
 
   for(unsigned int ref_num = 0; ref_num < reference.size(); ref_num++){
 
-    // Parallelized version of reference minimizers search
     std::shared_ptr<thread_pool::ThreadPool> thread_pool_ref = thread_pool::createThreadPool(t);
     std::vector<std::future<std::vector<minimizer>>> thread_futures_ref;
 
@@ -548,18 +557,9 @@ int main (int argc, char **argv) {
       }
     }
 
-    // Regular version of reference minimizers search
-    // std::vector<minimizer> t_minimizers = brown::minimizers(
-    //     reference[ref_num]->sequence.c_str(), reference[ref_num]->sequence.size(), k, window_length);
-
     prep_ref(t_minimizers, f);
     std::unordered_map<unsigned int, minimizer_index_t> ref_index = index_ref(t_minimizers);
 
-    // prvih 250 - zbog testiranja
-    // std::cout << map_paf(std::ref(t_minimizers), std::ref(ref_index), std::ref(data_set), std::ref(reference), 0, 250, ref_num);
-
-
-    // kod za visedretvenost
     std::shared_ptr<thread_pool::ThreadPool> thread_pool = thread_pool::createThreadPool(t);
     std::vector<std::future<std::string>> thread_futures;
 
@@ -575,5 +575,12 @@ int main (int argc, char **argv) {
       std::cout << it.get();
     }
   }
+
+  auto end_time = std::chrono::steady_clock::now();
+  auto interval1 = std::chrono::duration_cast<std::chrono::duration<double>>(loading_time - start_time);
+  auto interval2 = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - loading_time);
+  fprintf(stderr, "Time spend on loading files: %.2f sec\n", interval1.count());
+  fprintf(stderr, "Time spend on mapping: %.2f sec\n", interval2.count());
+  
   return 0;
 }

@@ -26,16 +26,6 @@ public:
       this->quality = {quality, quality_length};
   }
 
-  static void parse(std::vector<std::unique_ptr<FastAQ>> &fastaq_objects, const std::string file, const int file_format) {
-    if (file_format == 1) {
-      auto fasta_parser = bioparser::createParser<bioparser::FastaParser, FastAQ>(file);
-      fasta_parser->parse_objects(fastaq_objects, -1);
-    } else {
-      auto fastq_parser = bioparser::createParser<bioparser::FastqParser, FastAQ>(file);
-      fastq_parser->parse_objects(fastaq_objects, -1);
-    }
-  }
-
   static void print_statistics(const std::vector<std::unique_ptr<FastAQ>> &fastaq_objects, const std::string file) {
       uint32_t num = fastaq_objects.size();
       double average = 0;
@@ -51,7 +41,7 @@ public:
         }
       }
       average /= num;
-      fprintf(stderr, "stats for: %s\n"
+      fprintf(stderr, "Stats for: %s\n"
                       "  Number of sequences: %u\n"
                       "  Average length:      %g\n"
                       "  Maximum length:      %u\n"
