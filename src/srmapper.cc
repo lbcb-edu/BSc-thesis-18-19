@@ -39,7 +39,7 @@ const std::unordered_set<std::string> fasta_formats = {".fasta", ".fa", ".fasta.
 const std::unordered_set<std::string> fastq_formats = {".fastq", ".fq", ".fastq.gz", ".fq.gz"};
 
 // Sample size in bytes used for insert size inferrence
-constexpr uint32_t sample_bytes = 100 * 1024 * 1024;
+constexpr uint32_t sample_bytes = 256 * 1024 * 1024;
 
 static struct option long_options[] = {
   {"help", no_argument, NULL, 'h'},

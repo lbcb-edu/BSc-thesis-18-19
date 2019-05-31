@@ -191,15 +191,17 @@ void infer_insert_size(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
                        mapping_params_t& parameters) {
   mapping_params_t temp = parameters;
   temp.all = false;
-  temp.band = -1;
+  temp.band = -2;
+
+  uint32_t size = 0.05 * paired_reads.first.size();
 
   std::vector<uint32_t> ins;
-  ins.reserve(50000);
+  ins.reserve(size);
 
-  for (uint32_t i = 0; ins.size() < 50000; ++i) {
+  for (uint32_t i = 0; ins.size() < size && i < paired_reads.first.size(); ++i) {
     std::vector<mapping_t> ms1 = process_single(ref_index, t_minimizers, reference, paired_reads.first[i], temp);
     std::vector<mapping_t> ms2 = process_single(ref_index, t_minimizers, reference, paired_reads.second[i], temp);
-    if (ms1.size() && ms2.size() && ms1[0].mapq > 5 && ms2[0].mapq > 5) {
+    if (ms1.size() && ms2.size() && ms1[0].mapq >= 20 && ms2[0].mapq >= 20) {
       ins.push_back(ms1[0].pos < ms2[0].pos
                     ? (ms2[0].pos + paired_reads.second[i]->sequence.size()) - ms1[0].pos
                     : (ms1[0].pos + paired_reads.first[i]->sequence.size()) - ms2[0].pos);
@@ -210,21 +212,15 @@ void infer_insert_size(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
 
   uint32_t sum = 0;
   uint32_t count = 0;
-  for (uint32_t i = 0; i < ins.size(); ++i) {
-    if ((ins[ins.size() / 4] - 2 * (ins[ins.size() * 3 / 4] - ins[ins.size() / 4])) < ins[i]
-        && ins[i] < (ins[ins.size() * 3 / 4] + 2 * (ins[ins.size() * 3 / 4] - ins[ins.size() / 4]))) {
-          sum += ins[i];
-          count++;
-        }
+  for (uint32_t i = ins.size() / 4; i < ins.size() * 3 / 4; ++i) {
+    sum += ins[i];
+    count++;
   }
   parameters.insert_size = (uint32_t)round((float)sum / count);
 
   sum = 0;
-  for (uint32_t i = 0; i < ins.size(); ++i) {
-    if ((ins[ins.size() / 4] - 2 * (ins[ins.size() * 3 / 4] - ins[ins.size() / 4])) < ins[i]
-        && ins[i] < (ins[ins.size() * 3 / 4] + 2 * (ins[ins.size() * 3 / 4] - ins[ins.size() / 4]))) {
-          sum += (ins[i] - parameters.insert_size) * (ins[i] - parameters.insert_size);
-        }
+  for (uint32_t i = ins.size() / 4; i < ins.size() * 3 / 4; ++i) {
+    sum += (ins[i] - parameters.insert_size) * (ins[i] - parameters.insert_size);
   }
   parameters.sd = sqrt(sum / (count - 1.0f));
 }
