@@ -111,7 +111,7 @@ namespace OSALG_vector {
 					d_mat[i][j] = std::min(d_mat[i][j], d_mat[i - 2][j - 1] + diff(seq1[last_ind - j - 1], seq2[j - 2]));
 				}
 
-				//printf("diag (%d, %d) ::: %d\n", i, j, d_mat[i][j]);
+				printf("diag (%d, %d) ::: %d\n", i, j, d_mat[i][j]);
 			}
 		}
 	}
@@ -127,7 +127,7 @@ namespace OSALG_vector {
 		int **f1_mat = new int*[matrix_row_num];
 		int **f2_mat = new int*[matrix_row_num];
 
-		int diagonal_size = ((std::min(seq1.length() + 1, seq2.length() + 1) - 1) / 8) * 8 + 8 + 2;
+		int diagonal_size = ((std::min(seq1.length() + 1, seq2.length() + 1) - 1) / 8) * 8 + 8 + 2 + 16;
 
 		//TO DO ALLOCATION
 		for(int i = 0; i < matrix_row_num; ++i) {
@@ -145,7 +145,7 @@ namespace OSALG_vector {
 		__m256i v_2_vec = _mm256_set1_epi32(v[1]);
 
 		//first half of diagonals
-		for(int i = TRIANGLE_SIZE; i < seq1.length() + 1; ++i) {
+		for(int i = TRIANGLE_SIZE; i <= seq1.length(); ++i) {
 			int last_ind = get_last_index(i, seq1, seq2);
 
 			for(int j = 1; j <= last_ind; j += VECTOR_SIZE) {
@@ -168,7 +168,8 @@ namespace OSALG_vector {
 				//Match/mismatch
 				int m = last_ind - j;
 				int n = j - 1;
-				__m256i diff_vec = _mm256_set_epi32(test_coord_eligibility(m, n, seq1, seq2) ? diff(seq1[m - 1], seq2[n - 1]) : 0, test_coord_eligibility(m - 1, n + 1, seq1, seq2) ? diff(seq1[m - 2], seq2[n]) : 0,
+
+				__m256i diff_vec = _mm256_setr_epi32(test_coord_eligibility(m, n, seq1, seq2) ? diff(seq1[m - 1], seq2[n - 1]) : 0, test_coord_eligibility(m - 1, n + 1, seq1, seq2) ? diff(seq1[m - 2], seq2[n]) : 0,
 						test_coord_eligibility(m - 2, n + 2, seq1, seq2) ? diff(seq1[m - 3], seq2[n + 1]) : 0, test_coord_eligibility(m - 3, n + 3, seq1, seq2) ? diff(seq1[m - 4], seq2[n + 2]) : 0,
 						test_coord_eligibility(m - 4, n + 4, seq1, seq2) ? diff(seq1[m - 5], seq2[n + 3]) : 0, test_coord_eligibility(m - 5, n + 5, seq1, seq2) ? diff(seq1[m - 6], seq2[n + 4]) : 0,
 						test_coord_eligibility(m - 6, n + 6, seq1, seq2) ? diff(seq1[m - 7], seq2[n + 5]) : 0, test_coord_eligibility(m - 7, n + 7, seq1, seq2) ? diff(seq1[m - 8], seq2[n + 6]) : 0);
@@ -176,6 +177,7 @@ namespace OSALG_vector {
 				__m256i first_diagonal_d = _mm256_loadu_si256((__m256i *)&d_mat[i - 2][j - 1]);
 
 				__m256i third_diagonal_f0 = _mm256_add_epi32(first_diagonal_d, diff_vec);
+
 				third_diagonal_d = _mm256_min_epi32(third_diagonal_f0, third_diagonal_d);
 
 				//Insertion
@@ -193,11 +195,11 @@ namespace OSALG_vector {
 			
 			d_mat[i][0] = f1_mat[i][0] = f2_mat[i][0] = d_mat[i][last_ind + 1] = f1_mat[i][last_ind + 1] = f2_mat[i][last_ind + 1] = std::numeric_limits<int>::max() - OVERFLOW_CONTROL_VALUE;
 
-			for(int l = 0; l < 20; ++l) {
-				printf("len %d, diago: (%d, %d) ::: %d\n", last_ind, i, l, d_mat[i][l]);
-			}
+			if(i == seq1.length())
+				for(int l = 0; l < last_ind + 1; ++l) {
+					printf("len %d, diago: (%d, %d) ::: %d\n", last_ind, i, l, d_mat[i][l]);
+				}
 
-			return 1;
 		}
 		printf("Prosao prvu polovicu\n");
 		//second half of diagonals
@@ -227,7 +229,7 @@ namespace OSALG_vector {
 				int m = seq1.length() + 1 - j;
 				int n = seq2.length() - last_ind + 1;
 
-				__m256i diff_vec = _mm256_set_epi32(test_coord_eligibility(m, n, seq1, seq2) ? diff(seq1[m - 1], seq2[n - 1]) : 0, test_coord_eligibility(m - 1, n + 1, seq1, seq2) ? diff(seq1[m - 2], seq2[n]) : 0,
+				__m256i diff_vec = _mm256_setr_epi32(test_coord_eligibility(m, n, seq1, seq2) ? diff(seq1[m - 1], seq2[n - 1]) : 0, test_coord_eligibility(m - 1, n + 1, seq1, seq2) ? diff(seq1[m - 2], seq2[n]) : 0,
 						test_coord_eligibility(m - 2, n + 2, seq1, seq2) ? diff(seq1[m - 3], seq2[n + 1]) : 0, test_coord_eligibility(m - 3, n + 3, seq1, seq2) ? diff(seq1[m - 4], seq2[n + 2]) : 0,
 						test_coord_eligibility(m - 4, n + 4, seq1, seq2) ? diff(seq1[m - 5], seq2[n + 3]) : 0, test_coord_eligibility(m - 5, n + 5, seq1, seq2) ? diff(seq1[m - 6], seq2[n + 4]) : 0,
 						test_coord_eligibility(m - 6, n + 6, seq1, seq2) ? diff(seq1[m - 7], seq2[n + 5]) : 0, test_coord_eligibility(m - 7, n + 7, seq1, seq2) ? diff(seq1[m - 8], seq2[n + 6]) : 0);
