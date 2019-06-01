@@ -14,7 +14,7 @@
 #include <utility>
 #include <chrono>
 
-#include "srmapper.hpp"
+#include "countmap.hpp"
 #include "fastaq.hpp"
 #include "mapping_params.hpp"
 #include "index.hpp"
@@ -65,9 +65,9 @@ static struct option long_options[] = {
 
 
 void help(void) {
-  printf("srmapper - tool for mapping short reads to reference genome.\n\n"
+  printf("countmap - tool for mapping short reads to reference genome.\n\n"
 
-         "Usage: srmapper [OPTIONS] reference [reads]\n"
+         "Usage: countmap [OPTIONS] reference [reads]\n"
          "  reference - FASTA file containing reference genome\n"
          "  reads     - one or two FASTA/FASTQ file containing a set of fragments\n\n"
 
@@ -135,9 +135,9 @@ void help(void) {
 }
 
 void version(void) {
-  printf("srmapper %d.%d\n",
-    srmapper_VERSION_MAJOR,
-    srmapper_VERSION_MINOR
+  printf("countmap %d.%d\n",
+    countmap_VERSION_MAJOR,
+    countmap_VERSION_MINOR
   );
 }
 
@@ -232,7 +232,7 @@ int main(int argc, char **argv) {
       case 'f': {
         parameters.f = atof(optarg);
         if (parameters.f < 0.0f || parameters.f > 1.0f) {
-          fprintf(stderr, "[srmapper] error: f must be from [0, 1].\n"); 
+          fprintf(stderr, "[countmap] error: f must be from [0, 1].\n"); 
           exit(1); 
         }
         break;
@@ -259,32 +259,32 @@ int main(int argc, char **argv) {
         break;
       }
       default: {
-        fprintf(stderr, "[srmapper] error: Unknown option. Type %s --help for usage.\n", argv[0]);
+        fprintf(stderr, "[countmap] error: Unknown option. Type %s --help for usage.\n", argv[0]);
         exit(1);
       }
     }
   }
 
   if (argc - optind > 3 || argc - optind < 2) {
-    fprintf(stderr, "[srmapper] error: Expected read(s) and reference. Use --help for usage.\n");
+    fprintf(stderr, "[countmap] error: Expected read(s) and reference. Use --help for usage.\n");
     exit(1);
   }
   if (argc - optind == 2 && infer_is) {
-    fprintf(stderr, "[srmapper] error: Expected paired reads in order to infer insert size (option -I).\n");
+    fprintf(stderr, "[countmap] error: Expected paired reads in order to infer insert size (option -I).\n");
     exit(1);
   }
   if (argc - optind == 2 && paired) {
-    fprintf(stderr, "[srmapper] error: Expected paired reads in order to use paired-end mode (option -p).\n");
+    fprintf(stderr, "[countmap] error: Expected paired reads in order to use paired-end mode (option -p).\n");
     exit(1);
   }
 
   auto i_start = std::chrono::steady_clock::now();
 
-  fprintf(stderr, "[srmapper-load] loading reference... ");
+  fprintf(stderr, "[countmap-load] loading reference... ");
 
   std::string reference_file(argv[optind]);
   if (!check_extension(reference_file, fasta_formats)) {
-      fprintf(stderr, "[srmapper] error: Unsupported reference file format. Check --help for supported file formats.\n");
+      fprintf(stderr, "[countmap] error: Unsupported reference file format. Check --help for supported file formats.\n");
       exit(1);
   }
   std::vector<std::unique_ptr<fastaq::FastAQ>> reference;
@@ -297,8 +297,8 @@ int main(int argc, char **argv) {
   }
   ref_parser->parse_objects(reference, -1);
 
-  fprintf(stderr, "\r[srmapper-load] loaded reference           \n"
-                  "[srmapper-index] indexing reference... ");
+  fprintf(stderr, "\r[countmap-load] loaded reference           \n"
+                  "[countmap-index] indexing reference... ");
 
   std::shared_ptr<thread_pool::ThreadPool> thread_pool = thread_pool::createThreadPool(t);
 
@@ -325,20 +325,20 @@ int main(int argc, char **argv) {
   }
   prep_ref(t_minimizers, parameters.f);
   std::unordered_map<uint64_t, index_pos_t> ref_index = index_ref(t_minimizers);
-  fprintf(stderr, "\r[srmapper-index] indexed reference        \n");
+  fprintf(stderr, "\r[countmap-index] indexed reference        \n");
 
   fastaq::FastAQ::print_statistics(reference, reference_file);
 
   auto i_end = std::chrono::steady_clock::now();
   auto i_interval = std::chrono::duration_cast<std::chrono::duration<double>>(i_end - i_start);
-  fprintf(stderr, "[srmapper-index] index time: %.2f sec\n", i_interval.count());
+  fprintf(stderr, "[countmap-index] index time: %.2f sec\n", i_interval.count());
   
   if (infer_is && argc - optind == 3) {
     std::string reads_file1(argv[optind + 1]);
     std::string reads_file2(argv[optind + 2]);
     if (!(check_extension(reads_file1, fasta_formats) || check_extension(reads_file1, fastq_formats))
         || !(check_extension(reads_file2, fasta_formats) || check_extension(reads_file2, fastq_formats))) {
-      fprintf(stderr, "[srmapper] error: Unsupported paired-end reads formats. Check --help for supported file formats.\n");
+      fprintf(stderr, "[countmap] error: Unsupported paired-end reads formats. Check --help for supported file formats.\n");
       exit(1);
     }
     paired_parser_ptr_t parser;
@@ -349,7 +349,7 @@ int main(int argc, char **argv) {
       parser.first = bioparser::createParser<bioparser::FastqParser, fastaq::FastAQ>(reads_file1);
       parser.second = bioparser::createParser<bioparser::FastqParser, fastaq::FastAQ>(reads_file2);
     } else {
-      fprintf(stderr, "[srmapper] error: Paired-end reads formats not equal.\n");
+      fprintf(stderr, "[countmap] error: Paired-end reads formats not equal.\n");
       exit(1);
     }
 
@@ -363,7 +363,7 @@ int main(int argc, char **argv) {
     infer_insert_size(ref_index, t_minimizers,
                       reference[0], paired_reads,
                       parameters);
-    fprintf(stderr, "[srmapper-map] inferred insert size mean, standard deviation: %u, %.2f\n", 
+    fprintf(stderr, "[countmap-map] inferred insert size mean, standard deviation: %u, %.2f\n", 
             parameters.insert_size, parameters.sd);
     return 0;
   }
@@ -372,17 +372,17 @@ int main(int argc, char **argv) {
 
   if (argc - optind == 3) {
     if (paired) {
-      fprintf(stderr, "[srmapper] paired-end mode\n");
+      fprintf(stderr, "[countmap] paired-end mode\n");
     }
     else {
-      fprintf(stderr, "[srmapper] single-end mode\n");
+      fprintf(stderr, "[countmap] single-end mode\n");
     }
 
     std::string reads_file1(argv[optind + 1]);
     std::string reads_file2(argv[optind + 2]);
     if (!(check_extension(reads_file1, fasta_formats) || check_extension(reads_file1, fastq_formats))
         || !(check_extension(reads_file2, fasta_formats) || check_extension(reads_file2, fastq_formats))) {
-      fprintf(stderr, "[srmapper] error: Unsupported paired-end reads formats. Check --help for supported file formats.\n");
+      fprintf(stderr, "[countmap] error: Unsupported paired-end reads formats. Check --help for supported file formats.\n");
       exit(1);
     }
     paired_parser_ptr_t parser;
@@ -393,21 +393,22 @@ int main(int argc, char **argv) {
       parser.first = bioparser::createParser<bioparser::FastqParser, fastaq::FastAQ>(reads_file1);
       parser.second = bioparser::createParser<bioparser::FastqParser, fastaq::FastAQ>(reads_file2);
     } else {
-      fprintf(stderr, "[srmapper] error: Paired-end reads formats not equal.\n");
+      fprintf(stderr, "[countmap] error: Paired-end reads formats not equal.\n");
       exit(1);
     }
 
     printf("@HD\tVN:1.6\n"
            "@SQ\tSN:%s\tLN:%lu\n"
-           "@PG\tID:srmapper\tPN:srmapper\tCL:%s %s%s %s %s\n", 
-           reference[0]->name.c_str(), reference[0]->sequence.size(), 
+           "@PG\tID:countmap\tPN:countmap\tVN:%d.%d\tCL:%s %s%s %s %s\n", 
+           reference[0]->name.c_str(), reference[0]->sequence.size(),
+           countmap_VERSION_MAJOR, countmap_VERSION_MINOR, 
            argv[0], cl_flags.c_str(), 
            argv[optind], argv[optind + 1], argv[optind + 2]);
 
     uint32_t chunk_num = 1;
     while (true) {
-      fprintf(stderr, "[srmapper] chunk number %u\n", chunk_num++);
-      fprintf(stderr, "[srmapper-load] loading paired-end reads... ");
+      fprintf(stderr, "[countmap] chunk number %u\n", chunk_num++);
+      fprintf(stderr, "[countmap-load] loading paired-end reads... ");
 
 
       auto c_start = std::chrono::steady_clock::now();
@@ -416,24 +417,24 @@ int main(int argc, char **argv) {
       bool status1 = parser.first->parse_objects(paired_reads.first, chunk_size);
       bool status2 = parser.second->parse_objects(paired_reads.second, chunk_size);
       
-      fprintf(stderr, "\r[srmapper-load] loaded paired-end reads        \n");
+      fprintf(stderr, "\r[countmap-load] loaded paired-end reads        \n");
       
       fastaq::stats pr1_stats = fastaq::FastAQ::print_statistics(paired_reads.first, reads_file1);
       fastaq::stats pr2_stats = fastaq::FastAQ::print_statistics(paired_reads.second, reads_file2);
       
       if (paired) {
         if (pr1_stats.num != pr2_stats.num) {
-          fprintf(stderr, "[srmapper] error: Paired-end read files must have equal number of reads (pairs).\n");
+          fprintf(stderr, "[countmap] error: Paired-end read files must have equal number of reads (pairs).\n");
           exit(1);
         }
         if (pr1_stats.max - pr1_stats.min > 0 || pr2_stats.max - pr2_stats.min > 0) {
-          fprintf(stderr, "[srmapper] warning: Reads are not of fixed size.\n");
+          fprintf(stderr, "[countmap] warning: Reads are not of fixed size.\n");
         }
         if (!set_insert) {
           infer_insert_size(ref_index, t_minimizers,
                             reference[0], paired_reads,
                             parameters);
-          fprintf(stderr, "[srmapper-map] inferred insert size mean, standard deviation: %u, %.2f\n", 
+          fprintf(stderr, "[countmap-map] inferred insert size mean, standard deviation: %u, %.2f\n", 
                   parameters.insert_size, parameters.sd);
         }
       }
@@ -455,7 +456,7 @@ int main(int argc, char **argv) {
 
       auto c_end = std::chrono::steady_clock::now();
       auto c_interval = std::chrono::duration_cast<std::chrono::duration<double>>(c_end - c_start);
-      fprintf(stderr, "[srmapper-map] chunk time: %.2f sec\n", c_interval.count());
+      fprintf(stderr, "[countmap-map] chunk time: %.2f sec\n", c_interval.count());
       
       if (status1 == false || status2 == false) {
         break;
@@ -464,7 +465,7 @@ int main(int argc, char **argv) {
   } else {
     std::string reads_file(argv[optind + 1]);
     if (!(check_extension(reads_file, fasta_formats) || check_extension(reads_file, fastq_formats))) {
-      fprintf(stderr, "[srmapper] error: Unsupported format. Check --help for supported file formats.\n");
+      fprintf(stderr, "[countmap] error: Unsupported format. Check --help for supported file formats.\n");
       exit(1);
     }
 
@@ -477,22 +478,22 @@ int main(int argc, char **argv) {
 
     printf("@HD\tVN:1.6\n"
            "@SQ\tSN:%s\tLN:%lu\n"
-           "@PG\tID:srmapper\tPN:srmapper\tCL:%s %s%s %s\n", 
+           "@PG\tID:countmap\tPN:countmap\tCL:%s %s%s %s\n", 
            reference[0]->name.c_str(), reference[0]->sequence.size(), 
            argv[0], cl_flags.c_str(), 
            argv[optind], argv[optind + 1]);
 
     uint32_t chunk_num = 1;
     while(true) {
-      fprintf(stderr, "[srmapper] chunk number %u\n", chunk_num++);
-      fprintf(stderr, "[srmapper-load] loading reads... ");
+      fprintf(stderr, "[countmap] chunk number %u\n", chunk_num++);
+      fprintf(stderr, "[countmap-load] loading reads... ");
 
       auto c_start = std::chrono::steady_clock::now();
 
       std::vector<std::unique_ptr<fastaq::FastAQ>> reads;
       bool status = parser->parse_objects(reads, chunk_size);
 
-      fprintf(stderr, "\r[srmapper-load] loaded reads        \n");
+      fprintf(stderr, "\r[countmap-load] loaded reads        \n");
 
       fastaq::FastAQ::print_statistics(reads, reads_file);
 
@@ -513,7 +514,7 @@ int main(int argc, char **argv) {
 
       auto c_end = std::chrono::steady_clock::now();
       auto c_interval = std::chrono::duration_cast<std::chrono::duration<double>>(c_end - c_start);
-      fprintf(stderr, "[srmapper-map] chunk time: %.2f sec\n", c_interval.count());
+      fprintf(stderr, "[countmap-map] chunk time: %.2f sec\n", c_interval.count());
 
       if (status == false) {
         break;
@@ -523,7 +524,7 @@ int main(int argc, char **argv) {
 
   auto m_end = std::chrono::steady_clock::now();
   auto m_interval = std::chrono::duration_cast<std::chrono::duration<double>>(m_end - m_start);
-  fprintf(stderr, "[srmapper-map] mapping time: %.2f sec\n", m_interval.count());
+  fprintf(stderr, "[countmap-map] mapping time: %.2f sec\n", m_interval.count());
 
   return 0;
 }

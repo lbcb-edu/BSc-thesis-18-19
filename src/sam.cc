@@ -232,8 +232,8 @@ std::pair<mapping_t, mapping_t> pair_mapping(const std::string& qname,
   m1.pos = std::get<1>(region_pair.first.first) + 1;
   m2.pos = std::get<1>(region_pair.second.first) + 1;
 
-  m1.mapq = (uint32_t)round(std::max((double)std::get<0>(cigar1) / (query1.size() - (clipped1.first + clipped1.second) / 2) * 60 - z*z, (double)0));
-  m2.mapq = (uint32_t)round(std::max((double)std::get<0>(cigar2) / (query2.size() - (clipped2.first + clipped2.second) / 2) * 60 - z*z, (double)0));
+  m1.mapq = (uint32_t)round(std::max((double)std::get<0>(cigar1) / (query1.size() - (clipped1.first + clipped1.second)) * 60 - z*z, (double)0));
+  m2.mapq = (uint32_t)round(std::max((double)std::get<0>(cigar2) / (query2.size() - (clipped2.first + clipped2.second)) * 60 - z*z, (double)0));
 
   m1.cigar = preclip1 + std::get<2>(cigar1) + postclip1;
   m2.cigar = preclip2 + std::get<2>(cigar2) + postclip2;
