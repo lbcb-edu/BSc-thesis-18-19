@@ -136,7 +136,7 @@ namespace OSALG_vector {
 			f2_mat[i] = new int[diagonal_size];
 		}
 
-		init_first_triangle(d_mat, f1_mat, f2_mat, seq1, seq2);//checked ===
+		init_first_triangle(d_mat, f1_mat, f2_mat, seq1, seq2);
 		__m256i insert_penalty_vec = _mm256_set1_epi32(u[0]);
 
 		__m256i u_1_vec = _mm256_set1_epi32(u[0]);
@@ -166,7 +166,7 @@ namespace OSALG_vector {
 				third_diagonal_d = _mm256_min_epi32(third_diagonal_f2, third_diagonal_d);
 
 				//Match/mismatch
-				int m = last_ind - j;
+				int m = last_ind - j + ((i > seq2.length()) ? (i - seq2.length()) : 0);
 				int n = j - 1;
 
 				__m256i diff_vec = _mm256_setr_epi32(test_coord_eligibility(m, n, seq1, seq2) ? diff(seq1[m - 1], seq2[n - 1]) : 0, test_coord_eligibility(m - 1, n + 1, seq1, seq2) ? diff(seq1[m - 2], seq2[n]) : 0,
@@ -195,8 +195,8 @@ namespace OSALG_vector {
 			
 			d_mat[i][0] = f1_mat[i][0] = f2_mat[i][0] = d_mat[i][last_ind + 1] = f1_mat[i][last_ind + 1] = f2_mat[i][last_ind + 1] = std::numeric_limits<int>::max() - OVERFLOW_CONTROL_VALUE;
 
-			if(i == seq1.length())
-				for(int l = 0; l < last_ind + 1; ++l) {
+			if(i == 180)
+				for(int l = last_ind + 1; l >= 0; --l) {
 					printf("len %d, diago: (%d, %d) ::: %d\n", last_ind, i, l, d_mat[i][l]);
 				}
 
