@@ -45,30 +45,6 @@ namespace OSALG_vector {
 		return seq1.length() + seq2.length() + 1 - i;
 	}
 
-	void init_last_triangle(int **d_mat, int **f1_mat, int **f2_mat, std::string const &seq1, std::string const &seq2, int matrix_row_num) {
-		for(int i = matrix_row_num - TRIANGLE_SIZE; i < matrix_row_num; ++i) {
-			int last_ind = get_last_index(i, seq1, seq2);
-			
-			f1_mat[i][0] = f1_mat[i][last_ind + 1] = std::numeric_limits<int>::max() - OVERFLOW_CONTROL_VALUE;
-			f2_mat[i][0] = f2_mat[i][last_ind + 1] = std::numeric_limits<int>::max() - OVERFLOW_CONTROL_VALUE;
-			d_mat[i][0] = d_mat[i][last_ind + 1] = std::numeric_limits<int>::max() - OVERFLOW_CONTROL_VALUE;
-
-			for(int j = 1; j <= last_ind; ++j) {
-				//Deletion
-				f1_mat[i][j] = d_mat[i][j] = std::min(d_mat[i - 1][j] + v[0], f1_mat[i - 1][j]) + u[0];
-				f2_mat[i][j] = std::min(d_mat[i - 1][j] + v[1], f2_mat[i - 1][j]) + u[1];
-
-				d_mat[i][j] = std::min(d_mat[i][j], f2_mat[i][j]);
-
-				//Insertion
-				d_mat[i][j] = std::min(d_mat[i][j], d_mat[i - 1][j - 1] + u[0]);
-					
-				//Match/mismatch
-				d_mat[i][j] = std::min(d_mat[i][j], d_mat[i - 2][j - 1] + diff(seq1[i - 1], seq2[j - 1]));
-			}
-		}
-	}
-
 	void init_first_triangle(int **d_mat, int **f1_mat, int **f2_mat, std::string const &seq1, std::string const &seq2) {
 		d_mat[0][0] = d_mat[0][2] = std::numeric_limits<int>::max() - OVERFLOW_CONTROL_VALUE;
 		d_mat[0][1] = 0;
@@ -110,8 +86,6 @@ namespace OSALG_vector {
 					//Match/mismatch
 					d_mat[i][j] = std::min(d_mat[i][j], d_mat[i - 2][j - 1] + diff(seq1[last_ind - j - 1], seq2[j - 2]));
 				}
-
-				printf("diag (%d, %d) ::: %d\n", i, j, d_mat[i][j]);
 			}
 		}
 	}
@@ -195,15 +169,10 @@ namespace OSALG_vector {
 			
 			d_mat[i][0] = f1_mat[i][0] = f2_mat[i][0] = d_mat[i][last_ind + 1] = f1_mat[i][last_ind + 1] = f2_mat[i][last_ind + 1] = std::numeric_limits<int>::max() - OVERFLOW_CONTROL_VALUE;
 
-			if(i == 180)
-				for(int l = last_ind + 1; l >= 0; --l) {
-					printf("len %d, diago: (%d, %d) ::: %d\n", last_ind, i, l, d_mat[i][l]);
-				}
-
 		}
-		printf("Prosao prvu polovicu\n");
+
 		//second half of diagonals
-		for(int i = seq1.length() + 1; i < matrix_row_num - TRIANGLE_SIZE; ++i) {
+		for(int i = seq1.length() + 1; i < matrix_row_num; ++i) {
 			int last_ind = get_last_index(i, seq1, seq2);
 
 			for(int j = 1; j <= last_ind; j += VECTOR_SIZE) {
@@ -227,12 +196,13 @@ namespace OSALG_vector {
 
 				//Match/mismatch
 				int m = seq1.length() + 1 - j;
-				int n = seq2.length() - last_ind + 1;
+				int n = seq2.length() - last_ind + j;
 
 				__m256i diff_vec = _mm256_setr_epi32(test_coord_eligibility(m, n, seq1, seq2) ? diff(seq1[m - 1], seq2[n - 1]) : 0, test_coord_eligibility(m - 1, n + 1, seq1, seq2) ? diff(seq1[m - 2], seq2[n]) : 0,
 						test_coord_eligibility(m - 2, n + 2, seq1, seq2) ? diff(seq1[m - 3], seq2[n + 1]) : 0, test_coord_eligibility(m - 3, n + 3, seq1, seq2) ? diff(seq1[m - 4], seq2[n + 2]) : 0,
 						test_coord_eligibility(m - 4, n + 4, seq1, seq2) ? diff(seq1[m - 5], seq2[n + 3]) : 0, test_coord_eligibility(m - 5, n + 5, seq1, seq2) ? diff(seq1[m - 6], seq2[n + 4]) : 0,
 						test_coord_eligibility(m - 6, n + 6, seq1, seq2) ? diff(seq1[m - 7], seq2[n + 5]) : 0, test_coord_eligibility(m - 7, n + 7, seq1, seq2) ? diff(seq1[m - 8], seq2[n + 6]) : 0);
+
 
 				__m256i first_diagonal_d = _mm256_loadu_si256((__m256i *)((i == seq1.length() + 1) ? &d_mat[i - 2][j] : &d_mat[i - 2][j + 1]));
 
@@ -253,9 +223,6 @@ namespace OSALG_vector {
 
 			d_mat[i][0] = f1_mat[i][0] = f2_mat[i][0] = d_mat[i][last_ind + 1] = f1_mat[i][last_ind + 1] = f2_mat[i][last_ind + 1] = std::numeric_limits<int>::max() - OVERFLOW_CONTROL_VALUE;
 		}
-		printf("Prosao sredinu\n");
-		init_last_triangle(d_mat, f1_mat, f2_mat, seq1, seq2, matrix_row_num);
-		printf("Prosao zadnji trokut res = %d\n", d_mat[matrix_row_num - 1][1]);
 
 		
 
@@ -268,7 +235,7 @@ namespace OSALG_vector {
 		delete[] d_mat;
 		delete[] f1_mat;
 		delete[] f2_mat;
-		printf("Prosao brisanje trokut\n");
+
 		return 1;
 	}
 }
