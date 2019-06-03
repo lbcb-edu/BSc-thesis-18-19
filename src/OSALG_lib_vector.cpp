@@ -101,7 +101,7 @@ namespace OSALG_vector {
 		int **f1_mat = new int*[matrix_row_num];
 		int **f2_mat = new int*[matrix_row_num];
 
-		int diagonal_size = ((std::min(seq1.length() + 1, seq2.length() + 1) - 1) / 8) * 8 + 8 + 2 + 16;
+		int diagonal_size = ((std::min(seq1.length() + 1, seq2.length() + 1) - 1) / 8) * 8 + 8 + 2;
 
 		//TO DO ALLOCATION
 		for(int i = 0; i < matrix_row_num; ++i) {
