@@ -107,16 +107,21 @@ std::vector<mapping_t> process_single(const std::unordered_map<uint64_t, index_p
             }
   );
 
-  uint32_t stop = parameters.all ? mappings.size() : 1;
-  for (uint32_t i = 0; i < stop; ++i) {
-    mappings[i].mapq /= mappings.size();
-    if (i) {
-      mappings[i].flag |= 0x100;
-      mappings[i].mapq = 0;
+  if (parameters.all) {
+    for (uint32_t i = 0; i < mappings.size(); ++i) {
+      mappings[i].mapq /= mappings.size();
+      if (i) {
+        mappings[i].flag |= 0x100;
+        mappings[i].mapq = 0;
+      }
     }
-  }
-
-  if (!parameters.all) {
+  } else {
+    uint32_t i = 1;
+    uint32_t mapq = mappings[0].mapq;
+    while (i < mappings.size() && mappings[i].mapq == mapq) ++i;
+    uint32_t pick = std::rand() % i;
+    mappings[0] = mappings[pick];
+    mappings[0].mapq /= mappings.size();
     mappings.erase(mappings.begin() + 1, mappings.end());
   }
 
@@ -371,20 +376,33 @@ std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
     std::string sam1;
     std::string sam2;
 
-    uint32_t stop = parameters.all ? mappings.size() : 1;
-    for (uint32_t j = 0; j < stop; j+=2) {
-      mappings[j].first.mapq /= mappings.size();
-      mappings[j].second.mapq /= mappings.size();
+    if (parameters.all) {
+      for (uint32_t j = 0; j < mappings.size(); ++j) {
+        mappings[j].first.mapq /= mappings.size();
+        mappings[j].second.mapq /= mappings.size();
 
-      if (j) {
-        mappings[j].first.flag |= 0x100;
-        mappings[j].second.flag |= 0x100;
-        mappings[j].first.mapq = 0;
-        mappings[j].second.mapq = 0;
+        if (j) {
+          mappings[j].first.flag |= 0x100;
+          mappings[j].second.flag |= 0x100;
+          mappings[j].first.mapq = 0;
+          mappings[j].second.mapq = 0;
+        }
+        
+        sam1 += sam_format(mappings[j].first);
+        sam2 += sam_format(mappings[j].second);
       }
+    } else {
+      uint32_t j = 1;
+      uint32_t mapq = mappings[0].first.mapq + mappings[0].second.mapq;
+
+      while (j < mappings.size() && mappings[j].first.mapq + mappings[j].second.mapq == mapq) ++j;
+      uint32_t pick = std::rand() % j;
       
-      sam1 += sam_format(mappings[j].first);
-      sam2 += sam_format(mappings[j].second);
+      mappings[pick].first.mapq /= mappings.size();
+      mappings[pick].second.mapq /= mappings.size();
+
+      sam1 = sam_format(mappings[pick].first);
+      sam2 = sam_format(mappings[pick].second);
     }
 
     sam += sam1 + sam2;

@@ -35,11 +35,12 @@ std::tuple<uint32_t, int32_t, std::string> ksw2(const char* target, const uint32
   ts = (uint8_t*)malloc(t_len);
   qs = (uint8_t*)malloc(q_len);
 
+  c['N'] = std::rand() % 4;
   for (uint32_t i = 0; i < t_len; ++i) {
-    ts[i] = (c[(uint8_t)target[i]] & 3);
+    ts[i] = c[(uint8_t)target[i]];
   }
   for (uint32_t i = 0; i < q_len; ++i) {
-    qs[i] = (c[(uint8_t)query[i]] & 3);
+    qs[i] = c[(uint8_t)query[i]];
   }
 
   ksw_extz2_sse(0, q_len, qs, t_len, ts, 5, mat, 

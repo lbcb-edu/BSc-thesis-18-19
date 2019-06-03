@@ -4,6 +4,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstring>
+#include <ctime>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -164,7 +165,7 @@ int main(int argc, char **argv) {
   parameters.mis = 2;
   parameters.gapo = 2;
   parameters.gape = 1;
-  parameters.band = -1;
+  parameters.band = -2;
   parameters.k = 18;
   parameters.w = 3;
   parameters.f = 0.001f;
@@ -333,6 +334,8 @@ int main(int argc, char **argv) {
   auto i_interval = std::chrono::duration_cast<std::chrono::duration<double>>(i_end - i_start);
   fprintf(stderr, "[countmap-index] index time: %.2f sec\n", i_interval.count());
   
+  std::srand(std::time(0));
+
   if (infer_is && argc - optind == 3) {
     std::string reads_file1(argv[optind + 1]);
     std::string reads_file2(argv[optind + 2]);
