@@ -4,17 +4,68 @@ import os
 import csv
 import math
 
+version = "1.0"
+numofrequiredarg = 5
+
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import generic_protein
 
+
+def help():
+    print ("""usage: Script for evaluating two tools for metagenomic species identification - Kraken and CLARK. The script requires output files from the tools and simulator for simulating a test data set.
+        %s [-k|-c|-p|-i|-o|-v|-h]
+        -k, --kraken_file: Kraken output
+        -c, --clark_file: CLARK output
+        -p, --percentage_file: simulator's file with percentages
+        -i, --ids_file: simulator's file with list of sequences and taxons ids
+        -o, --output_name: evaluator output name of file
+        -v, --version: version
+        -h, --help: help
+        """)
+
 argv = sys.argv[1:]
-krakenfiletitle = argv[0]
-clarkfiletitle = argv[1]
-percentagefletitle = argv[2]
-idsfiletitle = argv[3]
-outputfile = argv[4]
+opts = []
+args = []
+
+try:
+    opts, args = getopt.getopt(argv, "k:c:p:i:o:vh", ["kraken_file=", "clark_file=", "percentage_file=", "ids_file=", "output_name=", "version", "help"])
+except getopt.GetoptError as err:
+    print(err)
+    help()
+
+if opts == []:
+    print ("Wrong input arguments. Number of required arguments: " + str(numofrequiredarg) + " For more information read help: ")
+    help()
+    exit()
+
+
+for opt,arg in opts:
+    if opt in ['-k', '--kraken_file']:
+        krakenfiletitle = arg
+    elif opt in ['-c', '--clark_file']:
+        clarkfiletitle = arg
+    elif opt in ['-t', '--third_bacteria']:
+        bact3 = arg
+    elif opt in ['-p', '--percentage_file']:
+        percentagefletitle = arg
+    elif opt in ['-i', '--ids_file']:
+        idsfiletitle = int(arg)/float(100)
+    elif opt in ['-o', '--output_name']:
+        outputfile = arg
+    elif opt in ['-v', '--version']:
+        print ("version: " + str(version))
+        exit()
+    elif opt in ['-h', '--help']:
+        help()
+        exit()
+
+if (opts != numofrequiredarg):
+    difference = numofrequiredarg - len(opts)
+    print ("Number of missing arguments: " + str(difference) + ". Please input all arguments. For more information read help")
+    help()
+    exit()
 
 percentagedict = {}
 seqtaxoutputdict = {}
