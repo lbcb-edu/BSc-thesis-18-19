@@ -221,10 +221,9 @@ namespace OSALG_vector {
 				_mm256_storeu_si256((__m256i *)&f2_mat[i][j], third_diagonal_f2);
 			}
 
-			d_mat[i][0] = f1_mat[i][0] = f2_mat[i][0] = d_mat[i][last_ind + 1] = f1_mat[i][last_ind + 1] = f2_mat[i][last_ind + 1] = std::numeric_limits<int>::max() - OVERFLOW_CONTROL_VALUE;
 		}
 
-		
+		//printf("res je: %d\n", d_mat[matrix_row_num - 1][1]);
 
 		//Deleting allocated memory
 		for(int i = 0; i < matrix_row_num; ++i) {
