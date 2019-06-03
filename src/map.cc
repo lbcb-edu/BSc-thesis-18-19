@@ -103,7 +103,7 @@ std::vector<mapping_t> process_single(const std::unordered_map<uint64_t, index_p
 
   std::sort(mappings.begin(), mappings.end(), 
             [] (const mapping_t& a, const mapping_t& b) {
-              return a.mapq > b.mapq;
+              return a.as > b.as;
             }
   );
 
@@ -117,8 +117,8 @@ std::vector<mapping_t> process_single(const std::unordered_map<uint64_t, index_p
     }
   } else {
     uint32_t i = 1;
-    uint32_t mapq = mappings[0].mapq;
-    while (i < mappings.size() && mappings[i].mapq == mapq) ++i;
+    int32_t as = mappings[0].as;
+    while (i < mappings.size() && mappings[i].as == as) ++i;
     uint32_t pick = std::rand() % i;
     mappings[0] = mappings[pick];
     mappings[0].mapq /= mappings.size();
@@ -393,9 +393,9 @@ std::string map_paired(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
       }
     } else {
       uint32_t j = 1;
-      uint32_t mapq = mappings[0].first.mapq + mappings[0].second.mapq;
+      int32_t as = mappings[0].first.as + mappings[0].second.as;
 
-      while (j < mappings.size() && mappings[j].first.mapq + mappings[j].second.mapq == mapq) ++j;
+      while (j < mappings.size() && mappings[j].first.as + mappings[j].second.as == as) ++j;
       uint32_t pick = std::rand() % j;
       
       mappings[pick].first.mapq /= mappings.size();
