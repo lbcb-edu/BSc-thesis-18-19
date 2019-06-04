@@ -118,5 +118,5 @@ foreach my $f (@files) {
 close W;
 
 $query = substr($query, 0, -4);
-`Rscript ../R/density-plot.R $amount $type $query $graph`;
+`Rscript ../R/doPlot.R $amount $type $query $graph`;
 `rm -f $temp_file`;
