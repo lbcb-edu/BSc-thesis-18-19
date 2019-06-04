@@ -1,6 +1,5 @@
 #!/usr/bin/Rscript
 
-
 # database could have been passed a filename or an accession number
 myDoBlast <- function(file, name="", database=ref_fna_file, cutoff=100) {
   
@@ -64,6 +63,7 @@ myDoBlast <- function(file, name="", database=ref_fna_file, cutoff=100) {
 
 # option using command line
 args <- commandArgs(TRUE)
+name <- sapply(strsplit(args[1], "/"), tail, 1)
 name <- substr(name, 1, nchar(name)-4)
 
 if (length(args) == 2) {
