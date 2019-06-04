@@ -147,9 +147,11 @@ namespace OSALG_vector {
 		int counter;
 		char lastChar, c;
 
-		bool del_mode = false;
-
+		bool del_mode1 = false;
+		bool del_mode2 = false;
 		bool first_half_diags = false;
+
+		int min_seq_len = std::min(seq1.length(), seq2.length());
 
 		while (true) {
 			if(i == 0 && j == 1) break;
@@ -161,24 +163,46 @@ namespace OSALG_vector {
 
 			if(first_half_diags && j == 1) {
 				parent = DELETE;
-			} else if(first_half_diags && j == get_last_index(i, seq1, seq2)) {
+			} else if(i <= min_seq_len && j == get_last_index(i, seq1, seq2)) {
 				parent = INSERT;
 			} else {
-				if(d_mat[i][j] == f2_mat[i][j]) {
-					parent = DELETE;
-					del_mode = true;
-				} else if(d_mat[i][j] == f1_mat[i][j]) {
-					parent = DELETE;
-					del_mode = false;
-				} else if(d_mat[i][j] == (((first_half_diags) ? d_mat[i - 1][j - 1] : d_mat[i - 1][j]) + u[0])) {
-					parent = INSERT;
-				} else {
-					parent = MATCH;
-				}
 
+				if(del_mode1) {
+					parent = DELETE;
+
+					if(d_mat[i][j] == f2_mat[i][j]) {
+						del_mode2 = true;
+						del_mode1 = false;
+						continue;
+					}
+
+					if(! (f1_mat[i][j] == ((first_half_diags ? f1_mat[i - 1][j] : f1_mat[i - 1][j + 1]) + u[0]))) {
+						del_mode1 = false;
+					}
+				} else if(del_mode2){
+					parent = DELETE;
+
+					if(!(f2_mat[i][j] == ((first_half_diags ? f2_mat[i - 1][j] : f2_mat[i - 1][j + 1]) + u[1]))) {
+						del_mode2 = false;
+					}
+				} else {
+					if(d_mat[i][j] == f2_mat[i][j]) {
+						del_mode1 = true;
+						continue;
+					} else if(d_mat[i][j] == f1_mat[i][j]) {
+						del_mode2 = true;
+						continue;
+					} else if(d_mat[i][j] == (((first_half_diags) ? d_mat[i - 1][j - 1] : d_mat[i - 1][j]) + u[0])) {
+						parent = INSERT;
+					} else {
+						parent = MATCH;
+					}
+				}
+				/*
 				if(del_mode) {
 					parent = DELETE;
-				}	
+				}
+				*/	
 			}
 
 			if(extended_cigar) {
