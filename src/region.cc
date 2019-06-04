@@ -134,23 +134,21 @@ region_t find_region(std::vector<minimizer_hit_t>& hits) {
     return std::make_pair(std::make_tuple(0, 0, 0), std::make_tuple(0, 0, 0));
   }
   
-  // std::sort(hits.begin(), hits.end(), 
-  //           [] (const minimizer_hit_t& a, const minimizer_hit_t& b) {
-  //             if (std::get<2>(a) == 0) {
-  //               if (std::get<0>(a) == std::get<0>(b)) {
-  //                 return std::get<1>(a) < std::get<1>(b);
-  //               }
-  //               return std::get<0>(a) < std::get<0>(b);
-  //             } else {
-  //               if (std::get<0>(a) == std::get<0>(b)) {
-  //                 return std::get<1>(a) < std::get<1>(b);
-  //               }
-  //               return std::get<0>(a) > std::get<0>(b);
-  //             }
-  //           }
-  // );
-
-  bool strand = std::get<2>(hits[0]);
+  std::sort(hits.begin(), hits.end(), 
+            [] (const minimizer_hit_t& a, const minimizer_hit_t& b) {
+              if (std::get<2>(a) == 0) {
+                if (std::get<0>(a) == std::get<0>(b)) {
+                  return std::get<1>(a) < std::get<1>(b);
+                }
+                return std::get<0>(a) < std::get<0>(b);
+              } else {
+                if (std::get<0>(a) == std::get<0>(b)) {
+                  return std::get<1>(a) < std::get<1>(b);
+                }
+                return std::get<0>(a) > std::get<0>(b);
+              }
+            }
+  );
 
   std::vector<region_t> lis(hits.size(),
       std::make_pair(std::make_tuple(0, 0, 0), std::make_tuple(0, 0, 0)));
@@ -159,9 +157,7 @@ region_t find_region(std::vector<minimizer_hit_t>& hits) {
   lis[0] = std::make_pair(hits[0], hits[0]);
 
   for (uint32_t i = 1; i < hits.size(); ++i) {
-    if (strand 
-        ? std::get<1>(hits[i]) < std::get<1>(lis[len - 1].second) 
-        : std::get<1>(hits[i]) > std::get<1>(lis[len - 1].second)) {
+    if (std::get<1>(hits[i]) > std::get<1>(lis[len - 1].second)) {
       lis[len] = lis[len - 1];
       lis[len].second = hits[i];
       len++;
@@ -169,9 +165,7 @@ region_t find_region(std::vector<minimizer_hit_t>& hits) {
       auto pair_it = std::upper_bound(lis.begin(), lis.begin() + len, hits[i],
           [] (const minimizer_hit_t& a,
               const region_t& b) {
-            return std::get<2>(a) 
-                   ? (std::get<1>(a) > std::get<1>(b.second)) 
-                   : (std::get<1>(a) < std::get<1>(b.second));
+            return (std::get<1>(a) < std::get<1>(b.second));
           });
       if (pair_it == lis.begin()) {
         *pair_it = std::make_pair(hits[i], hits[i]);
