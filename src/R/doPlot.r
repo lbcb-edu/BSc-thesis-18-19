@@ -1,5 +1,3 @@
-#!/usr/bin/Rscript
-
 args <- commandArgs(TRUE)
 
 title = ifelse(args[2]=="p", "Plasmid", "Chromosome")
@@ -37,4 +35,3 @@ switch(args[4],
 
 message("Press Return To Continue")
 invisible(readLines("stdin", n=1))
-

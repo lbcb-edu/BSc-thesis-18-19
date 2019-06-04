@@ -1,7 +1,5 @@
-#!/usr/bin/Rscript
-
 # database could have been passed a filename or an accession number
-myDoBlast <- function(file, name="", database=ref_fna_file, cutoff=100) {
+doBlast2 <- function(file, name="", database=ref_fna_file, cutoff=100) {
   
   # contains information about strains which consist of chromosome and plasmids
   ref_meta_file <- "./Gamma_plasmids_meta.txt"
@@ -67,10 +65,10 @@ name <- sapply(strsplit(args[1], "/"), tail, 1)
 name <- substr(name, 1, nchar(name)-4)
 
 if (length(args) == 2) {
-  print(myDoBlast(file=args[1], name, database=args[2]))
+  print(doBlast2(file=args[1], name, database=args[2]))
   
 } else if (length(args) == 3) {
-  print(myDoBlast(file=args[1], name, database=args[2], cutoff=as.numeric(args[3])))
+  print(doBlast2(file=args[1], name, database=args[2], cutoff=as.numeric(args[3])))
   
 } else {
   print("Incorrect number of arguments - must be 2 or 3!")
