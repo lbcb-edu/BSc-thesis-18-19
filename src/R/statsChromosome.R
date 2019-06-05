@@ -7,7 +7,7 @@ frag_gt_0 <- nrow(data)
 
 # misclassified fragments (plasmid > 50%)
 data_cut <- data[data$Plasmid / data$Total > 0.5,]
-frag_gt_50 = nrow(data_cut)
+frag_gt_50 <- nrow(data_cut)
 
 
 # graph 1
