@@ -509,7 +509,8 @@ int main(int argc, char* argv[]) {
         if (split_chimers.find(i->name) != split_chimers.end()) {
             std::vector<std::pair<uint32_t, uint32_t>> positions = split_chimers[i->name];
             for(int j = 0; j < positions.size(); j++) {
-                std::string cut_piece = (i->sequence).substr(std::get<0>(positions[j]), std::get<1>(positions[j]));
+                uint32_t len = std::get<1>(positions[j]) - std::get<0>(positions[j]);
+                std::string cut_piece = (i->sequence).substr(std::get<0>(positions[j]), len);
                 std::string seq_name = (std::to_string(std::get<0>(positions[j]))).append(i->name);
                 //std::cout << seq_name << std::endl;
                 cleaned_sequences << ">" << seq_name << "\n";
