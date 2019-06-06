@@ -7,6 +7,12 @@ import math
 version = "1.0"
 numofrequiredarg = 5
 
+#taxon ids
+PSEUDOMONAS_KOREENSIS = '198620'
+PANTONEA_AGGLOMERANS = '549'
+KLEBSIELLA_PNEUMONIAE = '573'
+NOT_CLASS = '-10'
+
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -36,7 +42,7 @@ except getopt.GetoptError as err:
     help()
 
 if opts == []:
-    print ("Wrong input arguments. Number of required arguments: " + str(numofrequiredarg) + " For more information read help: ")
+    print ("Wrong input arguments. Number of required arguments: " + str(numofrequiredarg) + ". Please input all arguments. For more information read help: ")
     help()
     exit()
 
@@ -51,7 +57,7 @@ for opt,arg in opts:
     elif opt in ['-p', '--percentage_file']:
         percentagefletitle = arg
     elif opt in ['-i', '--ids_file']:
-        idsfiletitle = int(arg)/float(100)
+        idsfiletitle = arg
     elif opt in ['-o', '--output_name']:
         outputfile = arg
     elif opt in ['-v', '--version']:
@@ -61,7 +67,7 @@ for opt,arg in opts:
         help()
         exit()
 
-if (opts != numofrequiredarg):
+if (len(opts) != numofrequiredarg):
     difference = numofrequiredarg - len(opts)
     print ("Number of missing arguments: " + str(difference) + ". Please input all arguments. For more information read help")
     help()
@@ -135,7 +141,7 @@ with open(krakenfiletitle) as csv_file:
     linecount = 0
     for row in csvreader:
         if linecount == 0:
-            print "Empty row."
+            print ("Empty row.")
         else:
             numseqkraken += 1
             isclassified = row[0]
@@ -146,11 +152,11 @@ with open(krakenfiletitle) as csv_file:
                 numofclassifiedkraken += 1
             seqtaxkrakendict[sequenceID] = (taxonomyID, isclassified)
         linecount += 1
-        if taxonomyID == '198620':
+        if taxonomyID == PSEUDOMONAS_KOREENSIS:
             numofpseudokoreenskraken += 1
-        elif taxonomyID == '549':
+        elif taxonomyID == PANTONEA_AGGLOMERANS:
             numofpantoagglokraken += 1
-        elif taxonomyID == '573':
+        elif taxonomyID == KLEBSIELLA_PNEUMONIAE:
             numofklebipneumkraken += 1
 
 clarkisclasified = 0
@@ -159,7 +165,7 @@ with open(clarkfiletitle) as csv_file:
     linecount = 0
     for row in csvreader:
         if linecount == 0:
-            print "Empty row."
+            print ("Empty row.")
         else:
             numseqclark += 1
             sequenceID = row[0]
@@ -172,11 +178,11 @@ with open(clarkfiletitle) as csv_file:
                 clarkisclassified = 0
             seqtaxclarkdict[sequenceID] = (taxonomyID, clarkisclassified)
         linecount += 1
-        if taxonomyID == '198620':
+        if taxonomyID == PSEUDOMONAS_KOREENSIS:
             numofpseudokoreensclark += 1
-        elif taxonomyID == '549':
+        elif taxonomyID == PANTONEA_AGGLOMERANS:
             numofpantoaggloclark += 1
-        elif taxonomyID == '573':
+        elif taxonomyID == KLEBSIELLA_PNEUMONIAE:
             numofklebipneumclark += 1
 
 numseqclark -= 1

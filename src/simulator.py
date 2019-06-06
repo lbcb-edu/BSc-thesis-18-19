@@ -64,25 +64,24 @@ for opt,arg in opts:
         help()
         exit()
 
-if opts != numOfRequiredArg:
+if len(opts) != numOfRequiredArg:
     difference = numOfRequiredArg - len(opts)
     print ("Number of missing arguments: " + str(difference) + ". Please input all arguments. For more information read help")
     help()
     exit()
 
-outprec = {}
+outpercentage = {}
 
 infiles = [bact1, bact2, bact3, notbact]
 
-pantoagglo = 0
-pseudokoreens = 0
-klebipneum = 0
+pantoneaagglomerans = 0
+pseudomonaskoreensis = 0
+klebsiellapneumoniae = 0
 notclass = 0
 
 outnumseq = []
 outlist = []
 outlistId = {}
-l = 0
 
 for infile in infiles:
     seq = list(SeqIO.parse(infile,"fasta"))
@@ -91,25 +90,22 @@ for infile in infiles:
     index = int(totseq/numseqOut)+1
 
     i = 1
-    m = 0
-    l = 0
     
     outseqfile = infile
     
     if (outseqfile == 'pantonea_agglomerans_r9_4_1.fasta') or (outseqfile == 'pantonea_agglomerans_miseq.fasta'):
         outseqid = PANTONEA_AGGLOMERANS
-        pantoagglo = numseqOut
+        pantoneaagglomerans = numseqOut
     elif (outseqfile == 'pseudomonas_koreensis_r9_5.fasta') or (outseqfile == 'pseudomonas_koreensis_miseq_2_300.fasta'):
         outseqid = PSEUDOMONAS_KOREENSIS
-        pseudokoreens = numseqOut
+        pseudomonaskoreensis = numseqOut
     elif (outseqfile == 'klebsiella_pneumoniae_INF274_r9.fasta') or (outseqfile == 'klebsiella_pneumoniae_INF125_hiseq_2000.fasta'):
         outseqid = KLEBSIELLA_PNEUMONIAE
-        klebipneum = numseqOut
+        klebsiellapneumoniae = numseqOut
     else:
         outseqid = NOT_CLASS
         notclass = numseqOut
     for j in range(numseqOut):
-        l += 1
         if j != 0:
             i = j + index
         outseq = seq[i]
@@ -123,18 +119,18 @@ for infile in infiles:
     
 SeqIO.write(outlist, outfile + '.fasta', "fasta")
 
-prec_pantoagglo = 100 * (pantoagglo/float(len(outlist)))
-prec_pseudokoreens = 100 * (pseudokoreens/float(len(outlist)))
-prec_klebiprenum = 100 * (klebipneum/float(len(outlist)))
-prec_notclass = 100 * (notclass/float(len(outlist)))
+perc_pantoneaagglomerans = 100 * (pantoneaagglomerans/float(len(outlist)))
+perc_pseudomonaskoreensis = 100 * (pseudomonaskoreensis/float(len(outlist)))
+perc_klebsiellapneumoniae = 100 * (klebsiellapneumoniae/float(len(outlist)))
+perc_notclass = 100 * (notclass/float(len(outlist)))
 
-outprec[PANTONEA_AGGLOMERANS] = prec_pantoagglo
-outprec[PSEUDOMONAS_KOREENSIS] = prec_pseudokoreens
-outprec[KLEBSIELLA_PNEUMONIAE] = prec_klebiprenum
-outprec[NOT_CLASS] = prec_notclass
+outpercentage[PANTONEA_AGGLOMERANS] = perc_pantoneaagglomerans
+outpercentage[PSEUDOMONAS_KOREENSIS] = perc_pseudomonaskoreensis
+outpercentage[KLEBSIELLA_PNEUMONIAE] = perc_klebsiellapneumoniae
+outpercentage[NOT_CLASS] = perc_notclass
 
 f = open (outfile + "Percentage.txt", "w")
-f.write(str(outprec))
+f.write(str(outpercentage))
 f.close()
 
 exit()
