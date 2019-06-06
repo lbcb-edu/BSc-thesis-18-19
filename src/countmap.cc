@@ -60,7 +60,7 @@ static struct option long_options[] = {
   {"st_deviation", required_argument, NULL, 's'},
   {"threshold", required_argument, NULL, 'T'},
   {"threads", required_argument, NULL, 't'},
-  {"chunk_size", required_argument, NULL, 'c'},
+  {"batch_size", required_argument, NULL, 'B'},
   {NULL, no_argument, NULL, 0}
 };
 
@@ -129,9 +129,9 @@ void help(void) {
          "  -t  or  --threads        <uint>\n"
          "                             default: 3\n"
          "                             number of threads\n"
-         "  -c  or  --chunk_size     <uint>\n"
+         "  -B  or  --batch_size     <uint>\n"
          "                             default: max uint\n"
-         "                             read loading chunk size in MB\n"
+         "                             read loading batch size in MB\n"
   );
 }
 
@@ -175,10 +175,10 @@ int main(int argc, char **argv) {
   bool infer_is = false;
   bool set_insert = false;
   uint32_t t = 3;
-  uint32_t chunk_size = -1;
+  uint32_t batch_size = -1;
   std::string cl_flags;
 
-  while ((optchr = getopt_long(argc, argv, "hvpIam:M:o:e:b:k:w:f:i:s:T:t:c:", long_options, NULL)) != -1) {
+  while ((optchr = getopt_long(argc, argv, "hvpIam:M:o:e:b:k:w:f:i:s:T:t:B:", long_options, NULL)) != -1) {
     cl_flags += "-", cl_flags += optchr, cl_flags += " ";
     if (optarg != nullptr) cl_flags += optarg, cl_flags += " ";
     switch (optchr) {
@@ -255,8 +255,8 @@ int main(int argc, char **argv) {
         t = atoi(optarg);
         break;
       }
-      case 'c': {
-        chunk_size = atoi(optarg) * 1024 * 1024;
+      case 'B': {
+        batch_size = atoi(optarg) * 1024 * 1024;
         break;
       }
       default: {
@@ -408,17 +408,17 @@ int main(int argc, char **argv) {
            argv[0], cl_flags.c_str(), 
            argv[optind], argv[optind + 1], argv[optind + 2]);
 
-    uint32_t chunk_num = 1;
+    uint32_t batch_num = 1;
     while (true) {
-      fprintf(stderr, "[countmap] chunk number %u\n", chunk_num++);
+      fprintf(stderr, "[countmap] batch number %u\n", batch_num++);
       fprintf(stderr, "[countmap-load] loading paired-end reads... ");
 
 
       auto c_start = std::chrono::steady_clock::now();
 
       paired_reads_t paired_reads;
-      bool status1 = parser.first->parse_objects(paired_reads.first, chunk_size);
-      bool status2 = parser.second->parse_objects(paired_reads.second, chunk_size);
+      bool status1 = parser.first->parse_objects(paired_reads.first, batch_size);
+      bool status2 = parser.second->parse_objects(paired_reads.second, batch_size);
       
       fprintf(stderr, "\r[countmap-load] loaded paired-end reads        \n");
       
@@ -459,7 +459,7 @@ int main(int argc, char **argv) {
 
       auto c_end = std::chrono::steady_clock::now();
       auto c_interval = std::chrono::duration_cast<std::chrono::duration<double>>(c_end - c_start);
-      fprintf(stderr, "[countmap-map] chunk time: %.2f sec\n", c_interval.count());
+      fprintf(stderr, "[countmap-map] batch time: %.2f sec\n", c_interval.count());
       
       if (status1 == false || status2 == false) {
         break;
@@ -486,15 +486,15 @@ int main(int argc, char **argv) {
            argv[0], cl_flags.c_str(), 
            argv[optind], argv[optind + 1]);
 
-    uint32_t chunk_num = 1;
+    uint32_t batch_num = 1;
     while(true) {
-      fprintf(stderr, "[countmap] chunk number %u\n", chunk_num++);
+      fprintf(stderr, "[countmap] batch number %u\n", batch_num++);
       fprintf(stderr, "[countmap-load] loading reads... ");
 
       auto c_start = std::chrono::steady_clock::now();
 
       std::vector<std::unique_ptr<fastaq::FastAQ>> reads;
-      bool status = parser->parse_objects(reads, chunk_size);
+      bool status = parser->parse_objects(reads, batch_size);
 
       fprintf(stderr, "\r[countmap-load] loaded reads        \n");
 
@@ -517,7 +517,7 @@ int main(int argc, char **argv) {
 
       auto c_end = std::chrono::steady_clock::now();
       auto c_interval = std::chrono::duration_cast<std::chrono::duration<double>>(c_end - c_start);
-      fprintf(stderr, "[countmap-map] chunk time: %.2f sec\n", c_interval.count());
+      fprintf(stderr, "[countmap-map] batch time: %.2f sec\n", c_interval.count());
 
       if (status == false) {
         break;
