@@ -7,7 +7,7 @@
 
 #include "index.hpp"
 
-void prep_ref(std::vector<triplet_t>& t_minimizers, const float f) {
+void prep_ref(std::vector<minimizer>& t_minimizers, const float f) {
   std::unordered_map<unsigned int, unsigned int> ref_min_frequency;
   for (const auto& minimizer : t_minimizers) {
     ref_min_frequency[std::get<0>(minimizer)]++;
@@ -25,7 +25,7 @@ void prep_ref(std::vector<triplet_t>& t_minimizers, const float f) {
 
   unsigned int cutoff_freq = occurences[position] == 1 ? 2 : occurences[position];
 
-  std::vector<triplet_t> temp;
+  std::vector<minimizer> temp;
   temp.reserve(t_minimizers.size());
 
   for (const auto& minimizer : t_minimizers) {
@@ -37,14 +37,14 @@ void prep_ref(std::vector<triplet_t>& t_minimizers, const float f) {
   std::swap(t_minimizers, temp);
 
   std::sort(t_minimizers.begin(), t_minimizers.end(),
-      [] (const triplet_t& a, const triplet_t& b) {
+      [] (const minimizer& a, const minimizer& b) {
         return (std::get<0>(a) < std::get<0>(b));
       });
 
   t_minimizers.shrink_to_fit();
 }
 
-std::unordered_map<unsigned int, minimizer_index_t> index_ref(const std::vector<triplet_t>& t_minimizers) {
+std::unordered_map<unsigned int, minimizer_index_t> index_ref(const std::vector<minimizer>& t_minimizers) {
   std::unordered_map<unsigned int, minimizer_index_t> ref_index;
   unsigned int pos = 0;
   unsigned int num = 0;

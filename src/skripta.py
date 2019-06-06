@@ -35,8 +35,12 @@ dupliciSet = set()
 brojNemaPocetakNiKraj = 0;
 brojLosaVelicina = 0
 
+provjerenoMinimap = set()
+
 for line in content:
-	key = line.split()[0]
+	key = (line.split()[0], line.split()[5])
+
+	provjerenoMinimap.add(key)
 
 	if int(line.split()[1]) < (2 * k_value):
 		brojLosaVelicina += 1
@@ -78,10 +82,14 @@ brojUnutarGraniceKrajOba = 0
 brojNemaNiceg = 0
 error = 0
 
-for line in content:
-	key, velicina, pocetakQ, krajQ, strand, REFime, REFvelicina, pocetakR, krajR, negleda1, negleda2, negleda3 = line.split()
-	
+provjereno = set()
 
+for line in content:
+	ime, velicina, pocetakQ, krajQ, strand, REFime, REFvelicina, pocetakR, krajR, negleda1, negleda2, negleda3 = line.split()
+	key = (ime, REFime)
+
+	provjereno.add(key)
+	
 	barNesto = False
 
 	if int(krajQ) > int(velicina):
@@ -92,13 +100,13 @@ for line in content:
 		brojMinimapNema += 1
 		continue
 
-	key2, velicina2, pocetakQ2, krajQ2, strand2, REFime2, REFvelicina2, pocetakR2, krajR2, negleda12, negleda22, negleda32 = mapa[key].split()
+	ime2, velicina2, pocetakQ2, krajQ2, strand2, REFime2, REFvelicina2, pocetakR2, krajR2, negleda12, negleda22, negleda32 = mapa[key].split()
 
 	if strand != strand2:
 		zastavica = False
 		if key in dupliciSet:
 			for line2 in dupliciList:
-				if line2.split()[0] == key and line2.split()[4] == strand:
+				if (line2.split()[0],line2.split()[5]) == key and line2.split()[4] == strand:
 					zastavica = True
 					break
 		if zastavica:
@@ -106,7 +114,7 @@ for line in content:
 		brojRazlicitStrand += 1
 		continue
 
-	if key == key2 and velicina == velicina2 and pocetakQ == pocetakQ2 and krajQ == krajQ2 and strand == strand2 and REFime == REFime2 and pocetakR == pocetakR2 and krajR == krajR2:
+	if ime == ime2 and velicina == velicina2 and pocetakQ == pocetakQ2 and krajQ == krajQ2 and strand == strand2 and REFime == REFime2 and pocetakR == pocetakR2 and krajR == krajR2:
 		brojIstih += 1
 		barNesto = True
 
@@ -155,7 +163,6 @@ for line in content:
 
 	brojNemaNiceg += 1
 
-
 	#missPP = int(pocetakQ2) - int(pocetakQ)
 	#missPK = int(krajQ2) - int(krajQ)
 	#missKP = int(pocetakR2) - int(pocetakR)
@@ -169,28 +176,26 @@ for line in content:
 if error != 0:
 	print "Error", error
 
-print "Broj dobiven minimapom", velicinaMinimapa
-print "Duplici u minimapu", duplici
-print "Broj sekvenci s duljinom manjom od 2K", brojLosaVelicina
-print "Los pocetak i kraj", brojNemaPocetakNiKraj
+print "Minimap2 mapiranja:", velicinaMinimapa
+print "Višestruka mapiranja:", duplici
 print ""
-print "Broj dobivem mapperom", velicinaMappera
-print "Broj zapisa kojih minimap nema", brojMinimapNema
-print ""
-print "Broj razlicit strand", brojRazlicitStrand
-print "Broj istih", brojIstih
-print "Broj unutar granice 3:", brojUnutarGranice3
-print "Broj unutar granice 25:", brojUnutarGranice25
-print "Broj unutar granice (samo query)", brojUnutarGraniceQuery
-print "Broj unutar granice (samo reference)", brojUnutarGraniceReference
-print "Broj unutar granice (pocetak oba)", brojUnutarGranicePocetakOba
-print "Broj unutar granice (kraj oba)", brojUnutarGraniceKrajOba
-print "Broj unutar granice (query pocetak)", brojUnutarGranicePocetakQuery
-print "Broj unutar granice (query kraj)", brojUnutarGraniceKrajQuery
-print "Broj unutar granice (reference pocetak)", brojUnutarGranicePocetakReference
-print "Broj unutar granice (reference kraj)", brojUnutarGraniceKrajReference
-print "Broj nije nadeno nista", brojNemaNiceg
-
+print "Ukupno mapiranja:", velicinaMappera
+print "Minimap2 nema:", brojMinimapNema
+print "Razlicit lanac:", brojRazlicitStrand
+print "Identicna mapiranja:", brojIstih
+print "Unutar granice 3:", brojUnutarGranice3
+print "Unutar granice 25:", brojUnutarGranice25
+print "Samo upit:", brojUnutarGraniceQuery
+print "Samo referenca:", brojUnutarGraniceReference
+print "Pocetak upit i referenca:", brojUnutarGranicePocetakOba
+print "Kraj upit i referenca:", brojUnutarGraniceKrajOba
+print "Pocetak upita:", brojUnutarGranicePocetakQuery
+print "Kraj upita:", brojUnutarGraniceKrajQuery
+print "Pocetak reference:", brojUnutarGranicePocetakReference
+print "Kraj reference:", brojUnutarGraniceKrajReference
+print "Ne pronade nista:", brojNemaNiceg
+print "Duljina manjoa od 2K:", brojLosaVelicina
+print "Broj losih mapiranja:", brojNemaPocetakNiKraj
 
 
 

@@ -1,22 +1,19 @@
 #pragma once
 
-// value, position, origin
-typedef std::tuple<unsigned int, unsigned int, bool> triplet_t;
-
-// position, amount
+// Minimizer: value, position, origin
+typedef std::tuple<unsigned int, unsigned int, bool> minimizer;
+// Index: position, amount
 typedef std::pair<unsigned int, unsigned int> minimizer_index_t;
-
-// query position, reference position
+// Minimizer hit: query position, reference position
 typedef std::pair<unsigned int, unsigned int> minimizer_hit_t;
-
-// region number, number of hits
+// Region hit: region number, hits number
 typedef std::pair<unsigned int, int> region_hits;
 
 
 void find_minimizer_hits(
     const std::unordered_map<unsigned int, minimizer_index_t>& ref_index,
-    const std::vector<triplet_t>& t_minimizers,
-    const std::vector<triplet_t>& q_minimizers,
+    const std::vector<minimizer>& t_minimizers,
+    const std::vector<minimizer>& q_minimizers,
     std::vector<minimizer_hit_t>& same,
     std::vector<minimizer_hit_t>& rev);
 

@@ -13,8 +13,8 @@
 
 void find_minimizer_hits(
     const std::unordered_map<unsigned int, minimizer_index_t>& ref_index,
-    const std::vector<triplet_t>& t_minimizers,
-    const std::vector<triplet_t>& q_minimizers,
+    const std::vector<minimizer>& t_minimizers,
+    const std::vector<minimizer>& q_minimizers,
     std::vector<minimizer_hit_t>& same,
     std::vector<minimizer_hit_t>& rev) {
 

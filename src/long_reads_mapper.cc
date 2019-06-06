@@ -28,12 +28,15 @@
 #include "index.hpp"
 #include "util.hpp"
 
-typedef std::tuple<unsigned int, unsigned int, bool> minimizer; // value, position, origin
-typedef std::pair<unsigned int, unsigned int> minimizer_index_t; // position, amount
-typedef std::pair<unsigned int, unsigned int> minimizer_hit_t; // query position, reference position
-typedef std::pair<unsigned int, int> region_hits; //region number, number of hits
-
-// bioparser ptr
+// Minimizer: value, position, origin
+typedef std::tuple<unsigned int, unsigned int, bool> minimizer;
+// Index: position, amount
+typedef std::pair<unsigned int, unsigned int> minimizer_index_t;
+// Minimizer hit: query position, reference position
+typedef std::pair<unsigned int, unsigned int> minimizer_hit_t;
+// Region hit: region number, hits number
+typedef std::pair<unsigned int, int> region_hits;
+// Bioparser ptr
 typedef std::unique_ptr<bioparser::Parser<FastAQ>> parser_ptr_t;
 
 const std::unordered_set<std::string> fasta_formats = {".fasta", ".fa", ".fasta.gz", ".fa.gz"};
@@ -41,32 +44,30 @@ const std::unordered_set<std::string> fastq_formats = {".fastq", ".fq", ".fastq.
 
 std::map<char, char> complement_map = {{'C', 'G'}, {'A', 'T'}, {'T', 'A'}, {'U', 'A'}, {'G', 'C'}};
 
-// Sample size in bytes used for insert size inferrence
-constexpr uint32_t sample_bytes = 512 * 1024 * 1024;
 
-int k_value = 1000;
-float f = 0.001f; // za odbacivanje minimizera
-float percentage = 0.5; // koliki postotak sekvence gledati ako nema dovoljan broj hitova
+uint32_t k_value = 1000;
+float f = 0.001f;
+float percentage = 0.5f;
 
-int window_length = 5;
-int k = 15;
-int bandwidth = 500;
-int threshold = 5;
+uint32_t window_length = 5;
+uint32_t k = 15;
+uint32_t min_hits = 5;
+int32_t bandwidth = 500;
 
-int match = 2;
-int mismatch = -4;
-int gap_open = 4;
-int gap_extension = 2;
-int z_drop = 400;
+int32_t match = 2;
+int32_t mismatch = 4;
+int32_t gap_open = 4;
+int32_t gap_extension = 2;
+int32_t z_drop = 400;
 
 bool bool_cigar = false;
 bool sam_format = false;
-int t = 3;
+int32_t t = 3;
 
-unsigned int wrong_size = 0;
-unsigned int no_start_or_end = 0;
-unsigned int no_start = 0;
-unsigned int no_end = 0;
+uint32_t wrong_size = 0;
+uint32_t no_start_or_end = 0;
+uint32_t no_start = 0;
+uint32_t no_end = 0;
 
 static struct option long_options[] = {
   {"help", no_argument, NULL, 'h'},
@@ -123,7 +124,7 @@ void help(void) {
          "                             default: 2\n"
          "                             match number\n"
          "  -B  or  --mismatch       <int>\n"
-         "                             default: -4\n"
+         "                             default: 4\n"
          "                             mismatch number\n"
          "  -O  or  --gap_open       <int>\n"
          "                             default: 4\n"
@@ -149,10 +150,6 @@ void version(void) {
   );
 }
 
-// Check file extension
-// Args: filename   - name of file to be checked for extension
-//       extensions - set of accepted extensions
-// Return: extension accepted or not accepted
 bool check_extension(const std::string& filename, const std::unordered_set<std::string>& extensions) {
   for (const auto& it : extensions) {
     if (filename.size() > it.size()) {
@@ -173,7 +170,7 @@ std::string reverse_complement(const std::string& original, unsigned int pos, un
   return rc;
 }
 
-std::string map_paf(
+std::string mapping(
     const std::vector<minimizer>& t_minimizers,
     const std::unordered_map<unsigned int, minimizer_index_t>& ref_index,
     const std::vector<std::unique_ptr<FastAQ>>& data_set,
@@ -208,10 +205,10 @@ std::string map_paf(
 
     unsigned int region_size = sequence_length / k_value;    
 
-    std::vector<region_hits> start_hits_top = find_top_3(start_hits_region, threshold);
-    std::vector<region_hits> start_hits_top_rev = find_top_3(start_hits_region_rev, threshold);
-    std::vector<region_hits> end_hits_top = find_top_3(end_hits_region, threshold);
-    std::vector<region_hits> end_hits_top_rev = find_top_3(end_hits_region_rev, threshold);
+    std::vector<region_hits> start_hits_top = find_top_3(start_hits_region, min_hits);
+    std::vector<region_hits> start_hits_top_rev = find_top_3(start_hits_region_rev, min_hits);
+    std::vector<region_hits> end_hits_top = find_top_3(end_hits_region, min_hits);
+    std::vector<region_hits> end_hits_top_rev = find_top_3(end_hits_region_rev, min_hits);
 
     int hits_number = 0;
     unsigned int starting_region = 0;
@@ -227,13 +224,11 @@ std::string map_paf(
 
       find_what_exists(start_hits_top, start_hits_top_rev, end_hits_top, end_hits_top_rev, bool_start, bool_end);
 
-      //ako nema pocetka ni kraja preskoci
       if(!bool_start && !bool_end){
         no_start_or_end++;
         continue;
       }
 
-      //ima pocetak
       if(bool_start){
 
         bool bool_found_something = false;
@@ -257,14 +252,12 @@ std::string map_paf(
           }
         }
 
-        //ako nije nista nadeno preskoci
         if(!bool_found_something){
           no_end++;
           continue;
         }
       }
 
-      //ima kraj
       if(bool_end){
         
         bool bool_found_something = false;
@@ -288,7 +281,6 @@ std::string map_paf(
           }
         }
 
-        //ako nije nista nadeno preskoci
         if(!bool_found_something){
           no_start++;
           continue;
@@ -330,7 +322,7 @@ std::string map_paf(
     std::string cigar;
     if(bool_cigar || sam_format){
       int8_t a = match;
-      int8_t b = mismatch;
+      int8_t b = mismatch < 0 ? mismatch : -mismatch;
       int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
       int tl = ref_end - ref_start;
       int ql = end - start;
@@ -435,7 +427,7 @@ int main (int argc, char **argv) {
         break;
       }
       case 'n': {
-        threshold = atoi(optarg);
+        min_hits = atoi(optarg);
         break;
       }
       case 'A': {
@@ -515,6 +507,7 @@ int main (int argc, char **argv) {
 
   auto loading_time = std::chrono::steady_clock::now();
 
+  fprintf(stderr,"\n");
   FastAQ::print_statistics(reference, reference_file);
   fprintf(stderr,"\n");
   FastAQ::print_statistics(data_set, data_file);
@@ -527,7 +520,7 @@ int main (int argc, char **argv) {
                   "  bandwidth      = %d\n"
                   "  min hits       = %d\n"
                   "  threads        = %d\n",
-                  k_value, k, window_length, bandwidth, threshold, t);
+                  k_value, k, window_length, bandwidth, min_hits, t);
   if (bool_cigar || sam_format) {
     fprintf(stderr, " Alignment\n"
                     "  match          = %d\n"
@@ -571,10 +564,10 @@ int main (int argc, char **argv) {
     std::vector<std::future<std::string>> thread_futures;
 
     for (int tasks = 0; tasks < t - 1; ++tasks) {
-      thread_futures.emplace_back(thread_pool->submit_task(map_paf, std::ref(t_minimizers), std::ref(ref_index),
+      thread_futures.emplace_back(thread_pool->submit_task(mapping, std::ref(t_minimizers), std::ref(ref_index),
         std::ref(data_set), std::ref(reference), tasks * data_set.size() / t, (tasks + 1) * data_set.size() / t, ref_num));  
     }
-    thread_futures.emplace_back(thread_pool->submit_task(map_paf, std::ref(t_minimizers), std::ref(ref_index),
+    thread_futures.emplace_back(thread_pool->submit_task(mapping, std::ref(t_minimizers), std::ref(ref_index),
         std::ref(data_set), std::ref(reference), (t - 1) * data_set.size() / t, data_set.size(), ref_num));
     
     for (auto& it : thread_futures) {
@@ -595,6 +588,7 @@ int main (int argc, char **argv) {
   auto interval2 = std::chrono::duration_cast<std::chrono::duration<double>>(end_time - loading_time);
   fprintf(stderr, "Time spend on loading files: %.2f sec\n", interval1.count());
   fprintf(stderr, "Time spend on mapping: %.2f sec\n", interval2.count());
+  fprintf(stderr, "Time spend: %.2f sec\n", interval1.count() + interval2.count());
   
   return 0;
 }
