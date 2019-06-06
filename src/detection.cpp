@@ -17,15 +17,17 @@ struct mapping{
     uint32_t seq_len;
     uint32_t seq_start;
     uint32_t seq_end;
+    char relative_strand;
     uint32_t gen_start;
     uint32_t gen_end;
     uint32_t gen_length;
     std::string ref_name;
 
-    mapping(uint32_t seq_l, uint32_t seq_s, uint32_t seq_e, uint32_t gen_s, uint32_t gen_e, uint32_t gen_l, std::string ref_n) :
+    mapping(uint32_t seq_l, uint32_t seq_s, uint32_t seq_e, char relative_s, uint32_t gen_s, uint32_t gen_e, uint32_t gen_l, std::string ref_n) :
         seq_len(seq_l),
         seq_start(seq_s),
         seq_end(seq_e),
+        relative_strand(relative_s),
         gen_start(gen_s),
         gen_end(gen_e),
         gen_length(gen_l),
@@ -191,7 +193,7 @@ int main(int argc, char* argv[]) {
     for (auto& i : paf_objects){
         //std::cout << i->seq_name << "\t" << i->seq_start_pos << "\t" << i->seq_end_pos << std::endl;
         std::string key(i->seq_name);
-        mapping mapp(i->seq_length, i->seq_start_pos, i->seq_end_pos, i->gen_start_pos, i->gen_end_pos, i->gen_length, i->gen_name);
+        mapping mapp(i->seq_length, i->seq_start_pos, i->seq_end_pos, i->align_orientation, i->gen_start_pos, i->gen_end_pos, i->gen_length, i->gen_name);
         if (sequence_mapping_details.find(key) == sequence_mapping_details.end()){
             std::vector<mapping> vec;
             vec.push_back(mapp);
@@ -236,11 +238,12 @@ int main(int argc, char* argv[]) {
             uint32_t gen_start = (itr->second)[0].gen_start;
             uint32_t gen_end = (itr->second)[0].gen_end;
             std::string ref_n = (itr->second)[0].ref_name;
+            char rel_strand = (itr->second)[0].relative_strand;
             for (int i = 1 ; i < (itr->second).size(); i++) {
                 if (!(seq_start <= (itr->second)[i].seq_start && seq_end >= (itr->second)[i].seq_end) || (((itr->second)[i].seq_start - seq_start) > 20/100.0*(seq_end - seq_start) &&
                 seq_end < (itr->second)[i].seq_end) ||
                 ((seq_end - (itr->second)[i].seq_end) > 0.2*(seq_end - seq_start) && seq_start > (itr->second)[i].seq_start)) {
-                    if (((itr->second)[i].seq_end - (itr->second)[i].seq_start) > 0.9*(itr->second)[i].seq_len || seq_end - seq_start > 0.9*0.9*(itr->second)[i].seq_len) {
+                    if (((itr->second)[i].seq_end - (itr->second)[i].seq_start) > 0.9*(itr->second)[i].seq_len || (seq_end - seq_start) > 0.9*(itr->second)[i].seq_len) {
                         regular.emplace(itr->first);
                         break;
                     }
@@ -250,7 +253,7 @@ int main(int argc, char* argv[]) {
                     //std::cout << (itr->first) << "\t" << seq_gap << "\t" << ref_gap << std::endl;
                     //std::cout << ((float)(std::max(ref_gap, seq_gap) - std::min(ref_gap, seq_gap))/std::min(ref_gap, seq_gap)) << std::endl;
                     if((std::min(gen_start, (itr->second)[i].gen_start) > 100 || std::max(gen_end, (itr->second)[i].gen_end) < ((itr->second)[i].gen_length - 100))
-                    && !(((float)(std::max(ref_gap, seq_gap) - std::min(ref_gap, seq_gap))/std::min(ref_gap, seq_gap)) < (20.0/100) && (itr->second)[i].ref_name == ref_n)){
+                    && !(((float)(std::max(ref_gap, seq_gap) - std::min(ref_gap, seq_gap))/std::max(ref_gap, seq_gap)) < (20.0/100) && (itr->second)[i].ref_name == ref_n && (itr->second)[i].relative_strand == rel_strand)){
                         //std::cout << "Tu" << std::endl;
                         chimeric_reads[itr->first] = itr->second;
                         break;
@@ -275,23 +278,24 @@ int main(int argc, char* argv[]) {
 
     std::sort(all_repeatings.begin(), all_repeatings.end(), repeats_by_length);
 
+
     /*for (int i = 0; i < all_repeatings.size(); i++){
         std::cout << all_repeatings[i].gen_start << "\t" << all_repeatings[i].gen_end << std::endl;
     }*/
 
-    std::cout << "\n";
+    std::cout << all_repeatings.size() << std::endl;
 
     std::unordered_map<std::string, std::vector<std::tuple<uint32_t, uint32_t>>> reference_repeating_regions = find_repeating_regions(all_repeatings);
 
-    for(auto s = reference_repeating_regions.begin(); s != reference_repeating_regions.end(); s++) {
+    /*for(auto s = reference_repeating_regions.begin(); s != reference_repeating_regions.end(); s++) {
         std::vector<std::tuple<uint32_t, uint32_t>> rep_regions = reference_repeating_regions[s->first];
         std::sort(rep_regions.begin(), rep_regions.end(), sort_reference_repeatings);
         /*std::cout << s->first << std::endl;
         for (int j = 0; j < rep_regions.size(); j++) {
             std::cout << std::get<0>(rep_regions[j]) << "\t" << std::get<1>(rep_regions[j]) << std::endl;
         }
-        std::cout << "\n";*/
-    }
+        std::cout << "\n";
+    }*/
 
 
     for (auto rep_it = repeating_reads.begin(); rep_it != repeating_reads.end(); rep_it++) {
@@ -358,6 +362,7 @@ int main(int argc, char* argv[]) {
     }*/
 
     //std::cout << "----------------------------------------------------------" << std::endl;
+
 
     std::unordered_map<std::string, std::vector<std::pair<uint32_t, uint32_t>>> split_chimers;
 
@@ -496,26 +501,20 @@ int main(int argc, char* argv[]) {
         }
     }*/
 
-    /*std::ofstream cleaned_sequences;
+    std::ofstream cleaned_sequences;
     cleaned_sequences.open("cleaned_sequences.fasta");
 
     std::ofstream chimeric;
     chimeric.open("chimeric_reads.fasta");
 
     std::ofstream repeating;
-    repeating.open("repeating_reads.fasta");*/
+    repeating.open("repeating_reads.fasta");
 
     std::ofstream one_chimer;
     one_chimer.open("one_chimer.fasta");
 
      for(auto& i : first_object) {
-        if (i->name == "m130607_031915_42207_c100539492550000001823089611241310_s1_p0/11621/0_19034"){
-            one_chimer << ">" << i->name << "\n";
-            one_chimer << i->sequence << "\n";
-            break;
-        }
-
-        /*if (split_chimers.find(i->name) != split_chimers.end()) {
+        if (split_chimers.find(i->name) != split_chimers.end()) {
             std::vector<std::pair<uint32_t, uint32_t>> positions = split_chimers[i->name];
             for(int j = 0; j < positions.size(); j++) {
                 uint32_t len = std::get<1>(positions[j]) - std::get<0>(positions[j]);
@@ -542,7 +541,7 @@ int main(int argc, char* argv[]) {
             }
             chimeric << "\n";
             chimeric << i->sequence << "\n";
-        } /*else if (repeatings.find(i->name) != repeatings.end()) {
+        } else if (repeatings.find(i->name) != repeatings.end()) {
             repeating << ">" << i->name << "\t";
             std::vector<mapping> info = repeating_reads[i->name];
             std::sort(info.begin(), info.end(), sort_function);
@@ -564,7 +563,7 @@ int main(int argc, char* argv[]) {
         } else {
             cleaned_sequences << ">" << i->name << "\n";
             cleaned_sequences << i->sequence << "\n";
-        }*/
+        }
     }
 
     return 0;
