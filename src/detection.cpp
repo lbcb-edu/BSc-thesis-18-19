@@ -421,12 +421,12 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    /*for (auto chim = split_chimers.begin(); chim != split_chimers.end(); chim++) {
+    for (auto chim = split_chimers.begin(); chim != split_chimers.end(); chim++) {
         std::cout << chim->first << std::endl;
-        for (int a = 0; a < (chim->second).size(); a++) {
+        /*for (int a = 0; a < (chim->second).size(); a++) {
             std::cout << std::get<0>(chim->second[a]) << "\t" << std::get<1>(chim->second[a]) << std::endl;
-        }
-    }*/
+        }*/
+    }
 
     /*std::cout << "_________________________________________________________" << std::endl;
 
@@ -496,17 +496,26 @@ int main(int argc, char* argv[]) {
         }
     }*/
 
-    std::ofstream cleaned_sequences;
+    /*std::ofstream cleaned_sequences;
     cleaned_sequences.open("cleaned_sequences.fasta");
 
     std::ofstream chimeric;
     chimeric.open("chimeric_reads.fasta");
 
     std::ofstream repeating;
-    repeating.open("repeating_reads.fasta");
+    repeating.open("repeating_reads.fasta");*/
+
+    std::ofstream one_chimer;
+    one_chimer.open("one_chimer.fasta");
 
      for(auto& i : first_object) {
-        if (split_chimers.find(i->name) != split_chimers.end()) {
+        if (i->name == "m130607_031915_42207_c100539492550000001823089611241310_s1_p0/11621/0_19034"){
+            one_chimer << ">" << i->name << "\n";
+            one_chimer << i->sequence << "\n";
+            break;
+        }
+
+        /*if (split_chimers.find(i->name) != split_chimers.end()) {
             std::vector<std::pair<uint32_t, uint32_t>> positions = split_chimers[i->name];
             for(int j = 0; j < positions.size(); j++) {
                 uint32_t len = std::get<1>(positions[j]) - std::get<0>(positions[j]);
@@ -533,7 +542,7 @@ int main(int argc, char* argv[]) {
             }
             chimeric << "\n";
             chimeric << i->sequence << "\n";
-        } else if (repeatings.find(i->name) != repeatings.end()) {
+        } /*else if (repeatings.find(i->name) != repeatings.end()) {
             repeating << ">" << i->name << "\t";
             std::vector<mapping> info = repeating_reads[i->name];
             std::sort(info.begin(), info.end(), sort_function);
@@ -555,7 +564,7 @@ int main(int argc, char* argv[]) {
         } else {
             cleaned_sequences << ">" << i->name << "\n";
             cleaned_sequences << i->sequence << "\n";
-        }
+        }*/
     }
 
     return 0;
