@@ -177,7 +177,7 @@ if error != 0:
 	print "Error", error
 
 print "Minimap2 mapiranja:", velicinaMinimapa
-print "Višestruka mapiranja:", duplici
+print "Visestruka mapiranja:", duplici
 print ""
 print "Ukupno mapiranja:", velicinaMappera
 print "Minimap2 nema:", brojMinimapNema
