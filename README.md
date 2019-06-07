@@ -33,7 +33,7 @@ countmap reference.fa query.fq > single-end_mappings.sam
 
 For mapping paired-end reads:
 ```bash
-countmap -p reference.fa query1.fq query2.fq > paired-end_single_mappings.sam
+countmap -p reference.fa query1.fq query2.fq > paired-end_mappings.sam
 ```
 
 For mapping paired-end reads as single-end:
