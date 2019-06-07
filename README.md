@@ -83,7 +83,7 @@ Usage of long_read_mapper is as following:
 			prints the usage			
 ```
 
-##Example
+## Example
 
 `test` directory contains two files: `e_coli_reference.fasta.gz` and `e_coli_sample.fasta`.
 
