@@ -12,7 +12,7 @@ CountMap is a C/C++ implementation of a short read mapper. For the alignment pha
 In order to build CountMap from source run the following commands:
 
 ```bash
-git clone --recursive -b spavlic https://github.com/lbcb-edu/BSc-thesis-18-19.git countmap
+git clone --recursive --single-branch -b spavlic https://github.com/lbcb-edu/BSc-thesis-18-19.git countmap
 cd countmap
 mkdir build
 cd build
