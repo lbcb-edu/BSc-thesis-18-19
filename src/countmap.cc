@@ -66,11 +66,11 @@ static struct option long_options[] = {
 
 
 void help(void) {
-  printf("countmap - tool for mapping short reads to reference genome.\n\n"
+  printf("CountMap - a tool for mapping short reads to a reference genome.\n\n"
 
-         "Usage: countmap [OPTIONS] reference [reads]\n"
-         "  reference - FASTA file containing reference genome\n"
-         "  reads     - one or two FASTA/FASTQ file containing a set of fragments\n\n"
+         "Usage: countmap [OPTIONS] reference.fa [read.fq]\n"
+         "  reference.fa - FASTA file containing reference genome\n"
+         "  [read.fq]    - one or two FASTQ files containing sequencing data\n\n"
 
          "Supported file extensions: .fasta\n"
          "                           .fa\n"
@@ -82,33 +82,33 @@ void help(void) {
          "                           .fq.gz\n\n"
          
          "OPTIONS:\n"
-         "  -h  or  --help           print help (displayed now) and exit\n"
-         "  -v  or  --version        print version info and exit\n"
+         "  -h  or  --help           show a summary of available options and exit\n"
+         "  -v  or  --version        show the current version number and exit\n"
          "  -p  or  --paired         paired-end mode\n"
          "  -I  or  --infer          only output inferred insert size and standard deviation\n"
          "  -a  or  --all            output all found mappings\n"
          "  -m  or  --match          <int>\n"
-         "                             default: 1\n"
+         "                             default: 2\n"
          "                             match value\n"
          "  -M  or  --mismatch       <int>\n"
-         "                             default: -2\n"
+         "                             default: 4\n"
          "                             mismatch value\n"
          "  -o  or  --gap-open       <int>\n"
-         "                             default: 2\n"
+         "                             default: 4\n"
          "                             gap open value\n"
          "  -e  or  --gap-extend     <int>\n"
-         "                             default: 1\n"
+         "                             default: 2\n"
          "                             gap extend value\n"
          "  -b  or  --band           <int>\n"
          "                             default: -1\n"
          "                             ksw2 alignment band, band < 0 => disabled\n"
-         "                             option: -2  => set band to half of QLEN\n"
+         "                             option: -1  => set band to half of QLEN\n"
          "  -k  or  --kmers          <uint>\n"
-         "                             default: 18\n"
+         "                             default: 12\n"
          "                             constraints: largest supported is 32\n"
          "                             number of letters in substrings\n"
          "  -w  or  --window_length  <uint>\n"
-         "                             default: 3\n"
+         "                             default: 5\n"
          "                             length of window\n"
          "  -f  or  --frequency      <float>\n"
          "                             default: 0.001\n"
@@ -130,7 +130,7 @@ void help(void) {
          "                             default: 3\n"
          "                             number of threads\n"
          "  -B  or  --batch_size     <uint>\n"
-         "                             default: max uint\n"
+         "                             default: 256\n"
          "                             read loading batch size in MB\n"
   );
 }
@@ -161,13 +161,13 @@ int main(int argc, char **argv) {
   int optchr;
   mapping_params_t parameters;
   parameters.all = false;
-  parameters.mch = 1;
-  parameters.mis = 2;
-  parameters.gapo = 2;
-  parameters.gape = 1;
-  parameters.band = -2;
-  parameters.k = 18;
-  parameters.w = 3;
+  parameters.mch = 2;
+  parameters.mis = 4;
+  parameters.gapo = 4;
+  parameters.gape = 2;
+  parameters.band = -1;
+  parameters.k = 12;
+  parameters.w = 5;
   parameters.f = 0.001f;
   parameters.insert_size = 215;
   parameters.threshold = 2;
@@ -175,7 +175,7 @@ int main(int argc, char **argv) {
   bool infer_is = false;
   bool set_insert = false;
   uint32_t t = 3;
-  uint32_t batch_size = -1;
+  uint32_t batch_size = 256 * 1024 * 1024;
   std::string cl_flags;
 
   while ((optchr = getopt_long(argc, argv, "hvpIam:M:o:e:b:k:w:f:i:s:T:t:B:", long_options, NULL)) != -1) {

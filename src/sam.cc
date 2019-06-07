@@ -45,7 +45,7 @@ std::tuple<uint32_t, int32_t, std::string> ksw2(const char* target, const uint32
 
   ksw_extz2_sse(0, q_len, qs, t_len, ts, 5, mat, 
                 parameters.gapo, parameters.gape, 
-                (parameters.band == -2 ? 0.1 * q_len : parameters.band), -1, 0, 0, &ez); // Set band width to 10% of query length
+                (parameters.band == -1 ? 0.1 * q_len : parameters.band), -1, 0, 0, &ez); // Set band width to 10% of query length
 
   std::string cigar;
   uint32_t matches = 0;
