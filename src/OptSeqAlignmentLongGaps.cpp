@@ -10,6 +10,7 @@
 
 #include "OSALG_lib.h"
 #include "OSALG_lib_vector.h"
+#include "OSALG_lib_vector16.h"
 
 #include "OptSeqAlignmentLongGapsConfig.h"
 
@@ -19,6 +20,7 @@ struct option options[] = {
 	{"extended", no_argument, 0, 'e'},
 	{"index_mode", no_argument, 0, 'i'},
 	{"vector", no_argument, 0, 0},
+	{"hex", no_argument, 0, 0},
 	{0, 0, 0, 0}
 };
 
@@ -73,6 +75,7 @@ void help() {
 		"	-e, --extended - constructed CIGARS will include \'=\'(match) and \'X\'(mismatch) characters instead of \'M\'\n"
 		"	-i, --indexed_mode - aligns query sequence at some index with the reference sequence at the same index\n"
 		"	--vector - enables vectorization mode\n"
+		"	--hex - this option only takes effect if you turned on vector mode. Set vector size at 16\n"
 		"==================\n"
 		"\n"
 	);
@@ -116,10 +119,14 @@ std::vector<std::unique_ptr<FASTAQEntity>> readFASTAFile(std::string const &file
 	return fasta_objects;
 }
 
-void generateOutput(std::unique_ptr<FASTAQEntity> const &ref, std::unique_ptr<FASTAQEntity> const &query, bool extended_cigar, bool vector_mode) {
+void generateOutput(std::unique_ptr<FASTAQEntity> const &ref, std::unique_ptr<FASTAQEntity> const &query, bool extended_cigar, bool vector_mode, bool hex) {
 	std::string cigar;
 	if(vector_mode) {
-		OSALG_vector::long_gaps_alignment(ref->sequence, query->sequence, cigar, extended_cigar);
+		if(hex) {
+			OSALG_vector16::long_gaps_alignment(ref->sequence, query->sequence, cigar, extended_cigar);
+		} else {
+			OSALG_vector::long_gaps_alignment(ref->sequence, query->sequence, cigar, extended_cigar);
+		}
 	} else {
 		OSALG::long_gaps_alignment(ref->sequence, query->sequence, cigar, extended_cigar);
 	}
@@ -142,6 +149,8 @@ int main(int argc, char **argv) {
 	bool extended_cigar = false;
 	bool indexed_mode = false;
 	bool vector_mode = false;
+	bool hex16_vec_mode = false;
+
 	while((optchr = getopt_long(argc, argv, "hvei", options, &option_index)) != -1) {
 		switch(optchr) {
 		
@@ -151,6 +160,10 @@ int main(int argc, char **argv) {
 
 				if(strcmp(options[option_index].name, "vector") == 0)
 					vector_mode = true;
+				
+				if(strcmp(options[option_index].name, "hex") == 0)
+					hex16_vec_mode = true;
+				
 
 				break;
 			case 'h':
@@ -205,15 +218,16 @@ int main(int argc, char **argv) {
 	if(!indexed_mode) {
 		for(auto const &ref : ref_entries) {
 			for(auto const &query : query_entries) {
-				generateOutput(ref, query, extended_cigar, vector_mode);
+				generateOutput(ref, query, extended_cigar, vector_mode, hex16_vec_mode);
 			}
 		}
 	} else {
+
 		int max_ind = std::min(ref_entries.size(), query_entries.size());
 
 		for(int i = 0; i < max_ind; ++i) {
 			printf("INDEX: %d\n", (i+1));
-			generateOutput(ref_entries[i], query_entries[i], extended_cigar, vector_mode);
+			generateOutput(ref_entries[i], query_entries[i], extended_cigar, vector_mode, hex16_vec_mode);
 		}
 	}
 

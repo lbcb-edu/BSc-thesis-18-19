@@ -8,8 +8,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=haswell -mavx2")
 
 #version
-set (OptSeqAlignmentLongGaps_VERSION_MAJOR 0)
-set (OptSeqAlignmentLongGaps_VERSION_MINOR 9)
+set (OptSeqAlignmentLongGaps_VERSION_MAJOR 1)
+set (OptSeqAlignmentLongGaps_VERSION_MINOR 0)
 set (OptSeqAlignmentLongGaps_VERSION_PATCH 0)
 
 set(CMAKE_CXX_STANDARD 11)
@@ -25,6 +25,7 @@ add_subdirectory(vendor/bioparser EXCLUDE_FROM_ALL)
 
 add_library(OSALG_lib ${PROJECT_SOURCE_DIR}/src/OSALG_lib.cpp)
 add_library(OSALG_lib_vector ${PROJECT_SOURCE_DIR}/src/OSALG_lib_vector.cpp)
+add_library(OSALG_lib_vector16 ${PROJECT_SOURCE_DIR}/src/OSALG_lib_vector16.cpp)
 
 add_executable(OptSeqAlignmentLongGaps src/OptSeqAlignmentLongGaps.cpp)
-target_link_libraries(OptSeqAlignmentLongGaps bioparser OSALG_lib OSALG_lib_vector)
+target_link_libraries(OptSeqAlignmentLongGaps bioparser OSALG_lib OSALG_lib_vector OSALG_lib_vector16)
