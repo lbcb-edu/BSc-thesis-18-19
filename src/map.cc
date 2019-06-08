@@ -196,7 +196,7 @@ void infer_insert_size(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
                        mapping_params_t& parameters) {
   mapping_params_t temp = parameters;
   temp.all = false;
-  temp.band = -2;
+  temp.band = -1;
 
   uint32_t size = 0.05 * paired_reads.first.size();
 
@@ -215,16 +215,25 @@ void infer_insert_size(const std::unordered_map<uint64_t, index_pos_t>& ref_inde
 
   std::sort(ins.begin(), ins.end());
 
+  uint32_t irq, start_val, end_val, start, end, j;
+  irq = 2 * (ins[ins.size() * 3 / 4] - ins[ins.size() / 4]);
+  start_val = ins[ins.size() / 4] - irq;
+  end_val = ins[ins.size() * 3 / 4] + irq;
+  for (j = 0; j < ins.size() && ins[j] < start_val; ++j);
+  start = j;
+  for (j = ins.size() - 1; j > 0 && ins[j] > end_val; --j);
+  end = j;
+  
   uint32_t sum = 0;
   uint32_t count = 0;
-  for (uint32_t i = ins.size() / 4; i < ins.size() * 3 / 4; ++i) {
+  for (uint32_t i = start; i < end; ++i) {
     sum += ins[i];
     count++;
   }
   parameters.insert_size = (uint32_t)round((float)sum / count);
 
   sum = 0;
-  for (uint32_t i = ins.size() / 4; i < ins.size() * 3 / 4; ++i) {
+  for (uint32_t i = start; i < end; ++i) {
     sum += (ins[i] - parameters.insert_size) * (ins[i] - parameters.insert_size);
   }
   parameters.sd = sqrt(sum / (count - 1.0f));
