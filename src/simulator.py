@@ -8,7 +8,6 @@ PANTONEA_AGGLOMERANS = 549
 KLEBSIELLA_PNEUMONIAE = 573
 NOT_CLASS = -10
 version = "1.0"
-numOfRequiredArg = 6
 
 
 from Bio import SeqIO
@@ -16,15 +15,24 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import generic_protein
 
+f = 0
+s = 0
+t = 0
+n = 0
+percentage = 15/float(100)
+outfile = "outputSimulator"
+
+
+
 def help():
-    print ("""usage: Script for generating metagenomic data set in FASTA format.
+    print ("""\nScript for generating metagenomic data set in FASTA format.
         %s [-f|-s|-t|-n|-p|-o|-v|-h]
         -f, --first_bacteria: first bacteria
         -s, --second_bacteria: second bacteria
         -t, --third_bacteria: third baceteria
         -n, --not_bacteria: sequences that are not from bacteria
-        -p, --percentage: percentage of sequences
-        -o, --output_name: output name of files
+        -p, --percentage: percentage of sequences (default = 15)
+        -o, --output_name: output name of files (default = "outputSimulator")
         -v, --version: version
         -h, --help: help
         """)
@@ -40,19 +48,23 @@ except getopt.GetoptError as err:
     help()
 
 if opts == []:
-    print ("Wrong input arguments. Number of required arguments: " + str(numOfRequiredArg) + " For more information read help: ")
+    print ("\nWrong input arguments. For more information read help: ")
     help()
     exit()
 
 for opt,arg in opts:
     if opt in ['-f', '--first_bacteria']:
         bact1 = arg
+        f = 1
     elif opt in ['-s', '--second_bacteria']:
         bact2 = arg
+        s = 1
     elif opt in ['-t', '--third_bacteria']:
         bact3 = arg
+        t = 1
     elif opt in ['-n', '--not_bacteria']:
         notbact = arg
+        n = 1
     elif opt in ['-p', '--percentage']:
         percentage = int(arg)/float(100)
     elif opt in ['-o', '--output_name']:
@@ -64,9 +76,8 @@ for opt,arg in opts:
         help()
         exit()
 
-if len(opts) != numOfRequiredArg:
-    difference = numOfRequiredArg - len(opts)
-    print ("Number of missing arguments: " + str(difference) + ". Please input all arguments. For more information read help")
+if (not f or not s or not t or not n):
+    print ("\nPlease input all required arguments. For more information read help: ")
     help()
     exit()
 

@@ -20,13 +20,13 @@ from Bio.Alphabet import generic_protein
 
 
 def help():
-    print ("""usage: Script for evaluating two tools for metagenomic species identification - Kraken and CLARK. The script requires output files from the tools and simulator for simulating a test data set.
+    print ("""\nScript for evaluating two tools for metagenomic species identification - Kraken and CLARK. The script requires output files from the tools and simulator for simulating a test data set.
         %s [-k|-c|-p|-i|-o|-v|-h]
         -k, --kraken_file: Kraken output
         -c, --clark_file: CLARK output
         -p, --percentage_file: simulator's file with percentages
         -i, --ids_file: simulator's file with list of sequences and taxons ids
-        -o, --output_name: evaluator output name of file
+        -o, --output_name: evaluator output name of file (default = "outputEvaluator")
         -v, --version: version
         -h, --help: help
         """)
@@ -34,6 +34,12 @@ def help():
 argv = sys.argv[1:]
 opts = []
 args = []
+k = 0
+c = 0
+p = 0
+id = 0
+outputfile = "outputEvaluator"
+
 
 try:
     opts, args = getopt.getopt(argv, "k:c:p:i:o:vh", ["kraken_file=", "clark_file=", "percentage_file=", "ids_file=", "output_name=", "version", "help"])
@@ -42,7 +48,7 @@ except getopt.GetoptError as err:
     help()
 
 if opts == []:
-    print ("Wrong input arguments. Number of required arguments: " + str(numofrequiredarg) + ". Please input all arguments. For more information read help: ")
+    print ("\nWrong input arguments. Please input all arguments. For more information read help: ")
     help()
     exit()
 
@@ -50,12 +56,16 @@ if opts == []:
 for opt,arg in opts:
     if opt in ['-k', '--kraken_file']:
         krakenfiletitle = arg
+        k = 1
     elif opt in ['-c', '--clark_file']:
         clarkfiletitle = arg
+        c = 1
     elif opt in ['-p', '--percentage_file']:
         percentagefletitle = arg
+        p = 1
     elif opt in ['-i', '--ids_file']:
         idsfiletitle = arg
+        id = 1
     elif opt in ['-o', '--output_name']:
         outputfile = arg
     elif opt in ['-v', '--version']:
@@ -65,9 +75,8 @@ for opt,arg in opts:
         help()
         exit()
 
-if (len(opts) != numofrequiredarg):
-    difference = numofrequiredarg - len(opts)
-    print ("Number of missing arguments: " + str(difference) + ". Please input all arguments. For more information read help")
+if (not k or not c or not p or not id):
+    print ("\nPlease input all required arguments. For more information read help:")
     help()
     exit()
 
