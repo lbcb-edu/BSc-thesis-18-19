@@ -13,7 +13,7 @@ cd src
 
 ## Usage
 
-For simulating test data set you can use data from folder test_data_for_simulator and run simulator script like this:
+For simulating test data set you can use data from folder [test_data_for_simulator](https://drive.google.com/file/d/1P8K1lcpy46FMYSz3-A8q1YnC1zQ9mcIx/view) and run simulator script like this:
 
 ```bash
 python simulator.py -f ../test_data_for_simulator/klebsiella_pneumoniae_INF125_hiseq_2000.fasta -s ../test_data_for_simulator/pantonea_agglomerans_miseq.fasta -t ../test_data_for_simulator/pseudomonas_koreensis_miseq_2_300.fasta -n ../test_data_for_simulator/human_chr.fasta 
@@ -29,7 +29,7 @@ or :
 python simulator.py --help
 ```
 
-In order to see how evaluator works, use test outputs from test_data_for_evaluator:
+In order to see how evaluator works, use test outputs from [test_data_for_evaluator](https://drive.google.com/file/d/1t90iMjv2Rt8Sv5GD5g4E2lE6GmGoVCMT/view):
 
 ```bash
 python evaluator.py -k ../test_data_for_evaluator/testdataset.kra.txt -c ../test_data_for_evaluator/clarktestdataset.csv -p ../test_data_for_evaluator/testdatasetPercentage.txt -i ../test_data_for_evaluator/testdatasetIDs.txt
