@@ -33,7 +33,6 @@ dupliciList = list()
 dupliciSet = set()
 
 brojNemaPocetakNiKraj = 0;
-brojLosaVelicina = 0
 
 provjerenoMinimap = set()
 
@@ -41,9 +40,6 @@ for line in content:
 	key = (line.split()[0], line.split()[5])
 
 	provjerenoMinimap.add(key)
-
-	if int(line.split()[1]) < (2 * k_value):
-		brojLosaVelicina += 1
 
 	if int(line.split()[2]) > k_value and (int(line.split()[1]) - int(line.split()[3])) > k_value:
 		brojNemaPocetakNiKraj += 1
@@ -70,15 +66,7 @@ brojUnutarGranice3 = 0
 brojUnutarGranice25 = 0
 brojIstih = 0
 brojMinimapNema = 0
-brojUnutarGraniceQuery = 0
-brojUnutarGraniceReference = 0
 brojRazlicitStrand = 0
-brojUnutarGranicePocetakQuery = 0
-brojUnutarGraniceKrajQuery = 0
-brojUnutarGranicePocetakReference = 0
-brojUnutarGraniceKrajReference = 0
-brojUnutarGranicePocetakOba = 0
-brojUnutarGraniceKrajOba = 0
 brojNemaNiceg = 0
 error = 0
 
@@ -127,35 +115,27 @@ for line in content:
 		barNesto = True
 
 	if test(pocetakQ, pocetakQ2) and test(krajQ, krajQ2):
-		brojUnutarGraniceQuery += 1
 		barNesto = True
 
 	if test(pocetakR, pocetakR2) and test(krajR, krajR2):
-		brojUnutarGraniceReference +=1
 		barNesto = True
 
 	if test(pocetakQ, pocetakQ2) and test(pocetakR, pocetakR2):
-		brojUnutarGranicePocetakOba +=1
 		barNesto = True
 
 	if test(krajQ, krajQ2) and test(krajR, krajR2):
-		brojUnutarGraniceKrajOba +=1
 		barNesto = True
 
 	if test(pocetakQ, pocetakQ2):
-		brojUnutarGranicePocetakQuery +=1
 		barNesto = True
 
 	if test(krajQ, krajQ2):
-		brojUnutarGraniceKrajQuery +=1
 		barNesto = True
 
 	if test(pocetakR, pocetakR2):
-		brojUnutarGranicePocetakReference +=1
 		barNesto = True
 
 	if test(krajR, krajR2):
-		brojUnutarGraniceKrajReference +=1
 		barNesto = True
 
 	if barNesto:
@@ -163,38 +143,23 @@ for line in content:
 
 	brojNemaNiceg += 1
 
-	#missPP = int(pocetakQ2) - int(pocetakQ)
-	#missPK = int(krajQ2) - int(krajQ)
-	#missKP = int(pocetakR2) - int(pocetakR)
-	#missKK = int(krajR2) - int(krajR)
-	
-	#print key,"\t", velicina, "\t", missPP, "\t", missPK, "\t", strand, "\t", missKP, "\t", missKK
-	#print line
-	#print mapa[key]
-	#print "\n"
-
 if error != 0:
 	print "Error", error
 
 print "Minimap2 mapiranja:", velicinaMinimapa
 print "Visestruka mapiranja:", duplici
 print ""
+
 print "Ukupno mapiranja:", velicinaMappera
-print "Minimap2 nema:", brojMinimapNema
-print "Razlicit lanac:", brojRazlicitStrand
 print "Identicna mapiranja:", brojIstih
 print "Unutar granice 3:", brojUnutarGranice3
 print "Unutar granice 25:", brojUnutarGranice25
-print "Samo upit:", brojUnutarGraniceQuery
-print "Samo referenca:", brojUnutarGraniceReference
-print "Pocetak upit i referenca:", brojUnutarGranicePocetakOba
-print "Kraj upit i referenca:", brojUnutarGraniceKrajOba
-print "Pocetak upita:", brojUnutarGranicePocetakQuery
-print "Kraj upita:", brojUnutarGraniceKrajQuery
-print "Pocetak reference:", brojUnutarGranicePocetakReference
-print "Kraj reference:", brojUnutarGraniceKrajReference
 print "Ne pronade nista:", brojNemaNiceg
-print "Duljina manjoa od 2K:", brojLosaVelicina
+print ""
+
+print "Ukupno mapiranja:", velicinaMappera
+print "Razlicit lanac:", brojRazlicitStrand
+print "Minimap2 nema:", brojMinimapNema
 print "Broj losih mapiranja:", brojNemaPocetakNiKraj
 
 

@@ -183,7 +183,142 @@ std::string mapping(
     unsigned int sequence_length = data_set[fobj]->sequence.size();
 
     if(sequence_length < (unsigned) (2 * k_value)){
-      wrong_size++;
+      std::vector<minimizer> start_minimizers = brown::minimizers(data_set[fobj]->sequence.c_str(), sequence_length, k, window_length);
+
+      std::vector<minimizer_hit_t> hits_same;
+      std::vector<minimizer_hit_t> hits_rev;
+
+      find_minimizer_hits(ref_index, t_minimizers, start_minimizers, hits_same, hits_rev);
+
+      std::unordered_map<unsigned int, int>  hits_region = parse_hits_map(hits_same, k_value);
+      std::unordered_map<unsigned int, int>  hits_region_rev = parse_hits_map(hits_rev, k_value);
+
+      region_hits hits_top = find_top(hits_region, min_hits);
+      region_hits hits_top_rev = find_top(hits_region_rev, min_hits);
+
+      if (std::get<1>(hits_top) == 0 && std::get<1>(hits_top_rev) == 0){
+        no_start_or_end++;
+        continue;
+      }
+
+      unsigned int region = 0;
+      bool rev = false;
+
+      if(std::get<1>(hits_top) == 0){
+        region = std::get<0>(hits_top_rev);
+        rev = true;
+      }else if (std::get<1>(hits_top_rev) == 0){
+        region = std::get<0>(hits_top);
+      }else{
+        if(std::get<1>(hits_top) > std::get<1>(hits_top_rev)){
+          region = std::get<0>(hits_top);
+        }else{
+          region = std::get<0>(hits_top_rev);
+          rev = true;
+        }
+      }
+
+      unsigned int start = k_value;
+      unsigned int end = 0;
+      unsigned int ref_start = 0;
+      unsigned int ref_end = 0;
+
+      if(!rev){
+        for(auto& minimizer : hits_same){
+          if((minimizer.second / k_value) == region || (minimizer.second / k_value) - 1 == region) {
+            if(minimizer.first < start){
+              start = minimizer.first;
+              ref_start = minimizer.second;
+            }
+            if(minimizer.first > end){
+              end = minimizer.first;
+              ref_end = minimizer.second;
+            }
+          }
+        }
+      }else{
+        for(auto& minimizer : hits_rev){
+          if((minimizer.second / k_value) == region || (minimizer.second / k_value) - 1 == region){
+            if(minimizer.first < start){
+              start = minimizer.first;
+              ref_end = minimizer.second;
+            }
+            if(minimizer.first > end){
+              end = minimizer.first;
+              ref_start = minimizer.second;
+            }
+          }
+        }
+      }
+
+      std::string seq;
+      if(rev){
+        seq = reverse_complement(data_set[fobj]->sequence, start, end - start);
+      }else{
+        seq = data_set[fobj]->sequence.substr(start, end - start);
+      }
+
+      int mapping_quality = 255;
+      //ksw2
+      std::string cigar;
+      if(bool_cigar || sam_format){
+        int8_t a = match;
+        int8_t b = mismatch < 0 ? mismatch : -mismatch;
+        int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
+        int tl = ref_end - ref_start;
+        int ql = end - start;
+        uint8_t *ts, *qs, c[256];
+        ksw_extz_t ez;
+        memset(&ez, 0, sizeof(ksw_extz_t));
+        memset(c, 5, 256);
+
+        c['C'] = c['c'] = 0; c['A'] = c['a'] = 1;
+        c['T'] = c['t'] = c['U'] = c['u'] = 2; c['G'] = c['g'] = 3;
+
+        ts = (uint8_t*)malloc(tl);
+        qs = (uint8_t*)malloc(ql);
+
+        for (int i = 0; i < tl; ++i) ts[i] = c[(uint8_t)seq[i]]; // encode to 0/1/2/3
+        for (int i = 0; i < ql; ++i) qs[i] = c[(uint8_t)reference[ref_num]->sequence[i + ref_start]]; // encode to 0/1/2/3      
+
+        ksw_extz2_sse(0, ql, qs, tl, ts, 5, mat, gap_open, gap_extension, bandwidth, z_drop, 0, 0, &ez);
+
+        if(start > 0) cigar += std::to_string(start) + "S";
+        for (int i = 0; i < ez.n_cigar; ++i) cigar += std::to_string(ez.cigar[i]>>4) + "MID"[ez.cigar[i]&0xf];
+        if(end < sequence_length) cigar += std::to_string(sequence_length - end) + "S";
+
+        free(ez.cigar); free(ts); free(qs);
+      }
+
+      //PAF format
+      if(!sam_format){ 
+        result += data_set[fobj]->name + "\t" +
+              std::to_string(sequence_length) + "\t" + 
+              std::to_string(start) + "\t" + 
+              std::to_string(end) + "\t" + 
+              (rev ? "-" : "+") + "\t" +
+              reference[ref_num]->name + "\t" +
+              std::to_string(reference[ref_num]->sequence.size()) + "\t" +
+              std::to_string(ref_start) + "\t" +
+              std::to_string(ref_end) + "\t" +
+              "*" + "\t" + //Number of residue matches
+              std::to_string(end - start) + "\t" + //Alignment block length
+              std::to_string(mapping_quality) + "\t" + //Mapping quality
+              (bool_cigar ? ("cg:Z:" + cigar + "\n") : "\n");
+      //SAM format
+      }else{ 
+        result += data_set[fobj]->name + "\t" +
+              "0" + "\t" + //FLAG
+              reference[ref_num]->name + "\t" +
+              std::to_string(ref_start + 1) + "\t" +
+              std::to_string(mapping_quality) + "\t" + //MAPQ
+              cigar + "\t" +
+              "*" + "\t" + //RNEXT
+              "0" + "\t" + //PNEXT
+              "0" + "\t" +  //TLEN
+              (rev ? reverse_complement(data_set[fobj]->sequence, 0, sequence_length) : data_set[fobj]->sequence) + "\t" +
+              "*\n"; //QUAL      
+      }
       continue;
     } 
 
@@ -199,9 +334,9 @@ std::string mapping(
     find_minimizer_hits(ref_index, t_minimizers, end_minimizers, end_hits_same, end_hits_rev);
 
     std::unordered_map<unsigned int, int> start_hits_region = parse_hits_map(start_hits_same, k_value);
-    std::unordered_map<unsigned int, int> start_hits_region_rev = parse_hits_map(start_hits_rev, k_value);
+    std::unordered_map<unsigned int, int>  start_hits_region_rev = parse_hits_map(start_hits_rev, k_value);
     std::unordered_map<unsigned int, int> end_hits_region = parse_hits_map(end_hits_same, k_value);
-    std::unordered_map<unsigned int, int> end_hits_region_rev = parse_hits_map(end_hits_rev, k_value);
+    std::unordered_map<unsigned int, int>  end_hits_region_rev = parse_hits_map(end_hits_rev, k_value);
 
     unsigned int region_size = sequence_length / k_value;    
 
@@ -318,6 +453,8 @@ std::string mapping(
       seq = data_set[fobj]->sequence.substr(start, end - start);
     }
 
+    int mapping_quality = 255;
+
     //ksw2
     std::string cigar;
     if(bool_cigar || sam_format){
@@ -330,8 +467,6 @@ std::string mapping(
       ksw_extz_t ez;
       memset(&ez, 0, sizeof(ksw_extz_t));
       memset(c, 5, 256);
-      // c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
-      // c['G'] = c['g'] = 2; c['T'] = c['t'] = 3; c['U'] = c['u'] = 3;
 
       c['C'] = c['c'] = 0; c['A'] = c['a'] = 1;
       c['T'] = c['t'] = c['U'] = c['u'] = 2; c['G'] = c['g'] = 3;
@@ -344,19 +479,11 @@ std::string mapping(
 
       ksw_extz2_sse(0, ql, qs, tl, ts, 5, mat, gap_open, gap_extension, bandwidth, z_drop, 0, 0, &ez);
 
-      // int gapo = 4;
-      // int gapo2 = 24;
-      // int gape = 1;
-      // int gape2 = 2;
-      // int w = 500;
-      // int z1 = 400;
-      // int z2 = 200;
-      // int s = 80;
-      // int noncan = 0;
-      // ksw_extd2_sse(0, ql, qs, tl, ts, 5, mat, gapo, gape, gapo2, gape2, w, z1, 0, 0, &ez);
-      // ksw_exts2_sse(0, ql, qs, tl, ts, 5, mat, gapo, gape, gapo2, noncan, z1,  0, &ez); //ispis??
-
+      if(start > 0) cigar += std::to_string(start) + "S";
       for (int i = 0; i < ez.n_cigar; ++i) cigar += std::to_string(ez.cigar[i]>>4) + "MID"[ez.cigar[i]&0xf];
+      if(end < sequence_length) cigar += std::to_string(sequence_length - end) + "S";
+
+      mapping_quality = ez.score;
       free(ez.cigar); free(ts); free(qs);
     }
 
@@ -373,7 +500,7 @@ std::string mapping(
             std::to_string(ref_end) + "\t" +
             "*" + "\t" + //Number of residue matches
             std::to_string(end - start) + "\t" + //Alignment block length
-            "255" + "\t" + //Mapping quality
+            std::to_string(mapping_quality) + "\t" + //Mapping quality
             (bool_cigar ? ("cg:Z:" + cigar + "\n") : "\n");
     //SAM format
     }else{ 
@@ -381,12 +508,12 @@ std::string mapping(
             "0" + "\t" + //FLAG
             reference[ref_num]->name + "\t" +
             std::to_string(ref_start + 1) + "\t" +
-            "255" + "\t" + //MAPQ
+            std::to_string(mapping_quality) + "\t" + //MAPQ
             cigar + "\t" +
             "*" + "\t" + //RNEXT
             "0" + "\t" + //PNEXT
             "0" + "\t" +  //TLEN
-            seq + "\t" +
+            (rev ? reverse_complement(data_set[fobj]->sequence, 0, sequence_length) : data_set[fobj]->sequence) + "\t" +
             "*\n"; //QUAL      
     }
   }
@@ -577,7 +704,6 @@ int main (int argc, char **argv) {
   }
 
   fprintf(stderr, "Number of sequences that have:\n");
-  fprintf(stderr, "  - too small size: %u\n", wrong_size);
   fprintf(stderr, "  - no start and no end: %u\n", no_start_or_end);
   fprintf(stderr, "  - start but do not have end: %u\n", no_end);
   fprintf(stderr, "  - end but do not have start: %u\n", no_start);

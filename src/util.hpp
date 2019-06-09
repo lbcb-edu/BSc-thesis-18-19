@@ -23,6 +23,8 @@ std::vector<region_hits> find_top_3(std::unordered_map<unsigned int, int>& map, 
 
 std::vector<region_hits> find_top_all(std::unordered_map<unsigned int, int>& map);
 
+region_hits find_top(std::unordered_map<unsigned int, int>& map, int threshold);
+
 void find_regions(
 	std::vector<region_hits>& start_hits_top,
 	std::vector<region_hits>& start_hits_top_rev,

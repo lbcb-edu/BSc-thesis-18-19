@@ -82,6 +82,19 @@ std::vector<region_hits> find_top_all(std::unordered_map<unsigned int, int>& map
     return result;
 }
 
+region_hits find_top(std::unordered_map<unsigned int, int>& map, int threshold){
+  int hits = 0;
+  unsigned int region = 0;
+  for (auto& it: map) {
+    if(it.second < threshold) continue;
+    if(std::get<1>(it) > hits){
+      hits = std::get<1>(it);
+      region = std::get<0>(it);
+    }
+  }
+  return std::make_pair(region, hits);
+}
+
 void find_regions(
 	std::vector<region_hits>& start_hits_top,
 	std::vector<region_hits>& start_hits_top_rev,
