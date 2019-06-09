@@ -91,7 +91,7 @@ for infile in infiles:
 
     i = 1
     
-    outseqfile = infile
+    outseqfile = os.path.basename(infile)
     
     if (outseqfile == 'pantonea_agglomerans_r9_4_1.fasta') or (outseqfile == 'pantonea_agglomerans_miseq.fasta'):
         outseqid = PANTONEA_AGGLOMERANS

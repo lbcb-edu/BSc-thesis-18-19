@@ -52,8 +52,6 @@ for opt,arg in opts:
         krakenfiletitle = arg
     elif opt in ['-c', '--clark_file']:
         clarkfiletitle = arg
-    elif opt in ['-t', '--third_bacteria']:
-        bact3 = arg
     elif opt in ['-p', '--percentage_file']:
         percentagefletitle = arg
     elif opt in ['-i', '--ids_file']:
@@ -190,7 +188,7 @@ numseqclark -= 1
 numofoutseq = len(seqtaxoutputdict)
 numsameseqkraken = 0
 numsameseqclark = 0
-#i = 0
+
 for seq in seqtaxoutputdict:
     outtaxid = seqtaxoutputdict[seq]
     if seq in seqtaxkrakendict:
@@ -205,8 +203,6 @@ for seq in seqtaxoutputdict:
             numsameseqclark += 1
             if isclassifiedclark:
                 numcorrectseqclark += 1
-#print i
-#i += 1
 
 percentageofsameseqkraken = (numsameseqkraken/float(numofoutseq)) * 100
 percentageofsameseqclark = (numsameseqclark/float(numofoutseq)) * 100
