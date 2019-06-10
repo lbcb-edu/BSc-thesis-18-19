@@ -50,7 +50,7 @@ std::vector<region_hits> find_top_3(std::unordered_map<unsigned int, int>& map, 
   std::vector<region_hits> result;
     for (auto& it: map) {
       if(it.second < threshold) continue;
-      if(result.size() < 3){
+      if(result.size() < 15){
         result.push_back(it);
       }else{
         if(it.second > std::get<1>(result[2])){
