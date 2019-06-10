@@ -33,8 +33,8 @@ Usage of long_read_mapper is as following:
 ```bash
 ./long_read_mapper [OPTIONS] <reference> <sequences>
 	
-	<reference>
-		FASTA file containing reference genome (can be compressed with gzip)
+    <reference>
+        FASTA file containing reference genome (can be compressed with gzip)
     <sequences>
         FASTA/FASTQ file containing a set of fragments (can be compressed with gzip)
 
@@ -47,52 +47,45 @@ Usage of long_read_mapper is as following:
             length of window
         -k  or  --kmers <int>
             default: 15
-			constraints: largest supported is 16
-			number of letters in substrings
-		-r  or  --bandwidth <int>
-			default: 500
-			bandwidth used in chaining and DP-based alignment
-		-n  or  --min_hits <int>
-			default: 5
-			minimum hits when finding region
-		-A  or  --match <int>
-			default: 2
-			match number
-		-B  or  --mismatch <int>
-			default: 4
-			mismatch number
-		-O  or  --gap_open <int>
+            constraints: largest supported is 16
+            number of letters in substrings
+        -r  or  --bandwidth <int>
+            default: 500
+            bandwidth used in chaining and DP-based alignment
+        -n  or  --min_hits <int>
+            default: 5
+            minimum hits when finding region
+        -A  or  --match <int>
+            default: 2
+            match number
+        -B  or  --mismatch <int>
             default: 4
-			gap opening penalty
-		-E  or  --gap_extension <int>
-			default: 2	
-			gap extension penalty
-		-z  or  --z_drop <int>	
-			default: 400	
-			Z-drop score
-		-t  or  --threads <int>
-			default: 3
-			number of threads
-		-c  or  --cigar 
-			output CIGAR in PAF
-		-a  or  --sam
-			output in the SAM format (PAF by default)
+            mismatch number
+        -O  or  --gap_open <int>
+            default: 4
+            gap opening penalty
+        -E  or  --gap_extension <int>
+            default: 2	
+            gap extension penalty
+        -z  or  --z_drop <int>	
+            default: 400	
+            Z-drop score
+        -t  or  --threads <int>
+            default: 3
+            number of threads
+        -c  or  --cigar 
+            output CIGAR in PAF
+        -a  or  --sam
+            output in the SAM format (PAF by default)
         -v or --version
-			prints the version number
+            prints the version number
         -h or --help
-			prints the usage			
+            prints the usage			
 ```
 
 ## Example
 
-`test` directory contains two files: `e_coli_reference.fasta.gz` and `e_coli_sample.fasta`.
-
-To test this example while positioned in `build` directory run the following command:
-
-```bash
-./long_reads_mapper ../test/e_coli_reference.fda.gz ../test/e_coli_sample.fasta > result.paf
-```
-
+The first version of the mapper was tested on an Oxford Nanopore Technologies data set obtained by sequencing the Escherichia coli K-12 substr. MG1655 genome. The data set is freely available from Loman Labs [here](https://nanopore.s3.climb.ac.uk/MAP006-1_2D_pass.fasta), while the reference genome is freely available from NCBI [here](https://bit.ly/2PCYHWr).
 
 # Final BSc thesis (computer science - 2018/2019)
 
