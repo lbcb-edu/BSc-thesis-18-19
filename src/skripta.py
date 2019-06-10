@@ -68,6 +68,7 @@ brojIstih = 0
 brojMinimapNema = 0
 brojRazlicitStrand = 0
 brojNemaNiceg = 0
+brojNesto = 0
 error = 0
 
 provjereno = set()
@@ -115,27 +116,35 @@ for line in content:
 		barNesto = True
 
 	if test(pocetakQ, pocetakQ2) and test(krajQ, krajQ2):
+		brojNesto += 1
 		barNesto = True
 
 	if test(pocetakR, pocetakR2) and test(krajR, krajR2):
+		brojNesto += 1
 		barNesto = True
 
 	if test(pocetakQ, pocetakQ2) and test(pocetakR, pocetakR2):
+		brojNesto += 1
 		barNesto = True
 
 	if test(krajQ, krajQ2) and test(krajR, krajR2):
+		brojNesto += 1
 		barNesto = True
 
 	if test(pocetakQ, pocetakQ2):
+		brojNesto += 1
 		barNesto = True
 
 	if test(krajQ, krajQ2):
+		brojNesto += 1
 		barNesto = True
 
 	if test(pocetakR, pocetakR2):
+		brojNesto += 1
 		barNesto = True
 
 	if test(krajR, krajR2):
+		brojNesto += 1
 		barNesto = True
 
 	if barNesto:
@@ -155,6 +164,7 @@ print "Identicna mapiranja:", brojIstih
 print "Unutar granice 3:", brojUnutarGranice3
 print "Unutar granice 25:", brojUnutarGranice25
 print "Ne pronade nista:", brojNemaNiceg
+print "Ima nesto:", brojNesto
 print ""
 
 print "Ukupno mapiranja:", velicinaMappera
