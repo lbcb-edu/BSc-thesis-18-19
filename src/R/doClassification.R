@@ -21,7 +21,7 @@ for (f in 1:length(files)) {
   name <- sapply(strsplit(files[f], "/"), tail, 1)
   name <- substr(name, 1, nchar(name)-4)
   
-  blastn_data <- doBlast(files[f], name=name, database=ref_fna_file)
+  blastn_data <- doBlast2(files[f], name=name, database=ref_fna_file)
   if (nrow(blastn_data) == 0) next
   summary_class <- ddply(blastn_data, .(Query, Contig), contigSummary, .progress="text")
   p_contigs <- subset(summary_class[order(summary_class$Length, decreasing=T),], Plasmid > 0)$Contig
