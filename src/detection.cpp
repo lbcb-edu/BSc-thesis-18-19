@@ -216,7 +216,7 @@ int main(int argc, char* argv[]) {
     std::unordered_set<std::string> regular;
     std::vector<mapping> all_repeatings;
 
-    /* By checking reads that have multiple mappings and positions of those mapping chimeric and repeating reads
+    /* By checking reads that have multiple mappings and positions of those mappings chimeric and repeating reads
      * are being detected and separated into sets
     */
     for (itr = sequence_mapping_details.begin(); itr != sequence_mapping_details.end(); itr++) {
