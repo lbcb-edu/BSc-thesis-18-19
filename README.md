@@ -18,7 +18,7 @@ make
 
 After building, executable file is located in /bin folder as detection. For detecting chimeric and repeating reads and create .fasta files with separated and annotated reads run:
 ```bash
-/bin/detection file_with_mappings.paf reads.fasta
+./bin/detection file_with_mappings.paf reads.fasta
 ```
 
 ## Data
