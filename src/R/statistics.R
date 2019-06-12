@@ -3,10 +3,10 @@
 #####################
 
 # input total number of fragments
-frag_num_chromo <- 9551
+frag_num_chromo <- 86570
 
 # fragments which are not 100% chromosome (plasmid > 0%)
-data_chromo <- read.table("stats-salmo-chromo.txt", header=TRUE, sep="\t", stringsAsFactors=FALSE)
+data_chromo <- read.table("stats-chromosome.txt", header=TRUE, sep="\t", stringsAsFactors=FALSE)
 frag_gt_0_chromo <- nrow(data_chromo)
 
 # misclassified fragments (plasmid > 50%)
@@ -51,10 +51,10 @@ hist(data_chromo$None / data_chromo$Total * 100,
 ##################
 
 # input total number of fragments
-frag_num_pla <- 4192
+frag_num_pla <- 84019
 
 # fragments which are not 100% plasmid (chromosome > 0%)
-data_pla <- read.table("stats-salmo-pla.txt", header=TRUE, sep="\t", stringsAsFactors=FALSE)
+data_pla <- read.table("stats-plasmid.txt", header=TRUE, sep="\t", stringsAsFactors=FALSE)
 frag_gt_0_pla <- nrow(data_pla)
 
 # misclassified fragments (chromosome > 50%)
