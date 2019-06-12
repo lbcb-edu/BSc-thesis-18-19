@@ -150,6 +150,7 @@ bool repeats_by_length(mapping& m1, mapping& m2) {
     return ((m1.gen_end - m1.gen_start) > (m2.gen_end - m2.gen_start));
 }
 
+// Function finds repeating reference regions by iterating through found repeats and checking if any two repeats map at same region
 std::unordered_map<std::string, std::vector<std::tuple<uint32_t, uint32_t>>> find_repeating_regions(std::vector<mapping>& repeats) {
     std::unordered_map<std::string, std::vector<std::tuple<uint32_t, uint32_t>>> return_map;
     for (int i = 0; i < repeats.size() - 1; i++) {
@@ -184,6 +185,7 @@ int main(int argc, char* argv[]) {
 
     std::unordered_map<std::string, std::vector<mapping>> sequence_mapping_details;
 
+    // Unordered map of read mappings is formed
     for (auto& i : paf_objects){
         std::string key(i->seq_name);
         mapping mapp(i->seq_length, i->seq_start_pos, i->seq_end_pos, i->align_orientation, i->gen_start_pos, i->gen_end_pos, i->gen_length, i->gen_name);
@@ -214,6 +216,9 @@ int main(int argc, char* argv[]) {
     std::unordered_set<std::string> regular;
     std::vector<mapping> all_repeatings;
 
+    /* By checking reads that have multiple mappings and positions of those mapping chimeric and repeating reads
+     * are being detected and separated into sets
+    */
     for (itr = sequence_mapping_details.begin(); itr != sequence_mapping_details.end(); itr++) {
         if ((itr->second).size() > 1) {
             std::sort((itr->second).begin(), (itr->second).end(), sort_function);
@@ -258,7 +263,9 @@ int main(int argc, char* argv[]) {
 
     std::unordered_set<std::string> contained_repeats;
 
-
+    /* After detecting repeating reference regions all found repeatings are being separated in two groups; those who are contained in
+     * some reference repeating region and those who are not
+    */
     for (auto rep_it = repeating_reads.begin(); rep_it != repeating_reads.end(); rep_it++) {
         bool contained = false;
         int n = 0;
@@ -289,6 +296,10 @@ int main(int argc, char* argv[]) {
 
     std::unordered_map<std::string, std::vector<std::pair<uint32_t, uint32_t>>> split_chimers;
 
+    /* In order to use chimeric reads for the assembly chimeric reads are being splitted into multiple reads by their breakpoints;
+     * special attention is given to those chimeric reads who have repeating regions as part of the read; those parts are being
+     * treated as repeating reads and annotated according to that
+    */
     for (itr = chimeric_reads.begin(); itr != chimeric_reads.end(); itr++) {
         for (int i = 0; i < (itr->second).size();) {
             if (i == (itr->second).size() - 1 ){
@@ -354,7 +365,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Kimernih sekvenci ima " << chimeric_reads.size() << std::endl;
     std::cout << "Repetitivnih sekvenci ima " << repeatings.size() + contained_repeats.size() << std::endl;
 
-
+    // Input file with reads is being parsed by bioparser library
     std::vector<std::unique_ptr<InputFile>> first_object;
     if (fasta_file.find("fastq")>fasta_file.length() && fasta_file.find("fq")>fasta_file.length()){
 
@@ -381,6 +392,9 @@ int main(int argc, char* argv[]) {
     std::ofstream repeating;
     repeating.open("repeating_reads.fasta");
 
+     /* Iterating through vector of reads, reads are being separated into files according to their clasiffication as chimeric or
+      * repeating read or none of the above
+     */
      for(auto& i : first_object) {
         if (split_chimers.find(i->name) != split_chimers.end()) {
             std::vector<std::pair<uint32_t, uint32_t>> positions = split_chimers[i->name];
@@ -459,6 +473,26 @@ int main(int argc, char* argv[]) {
             cleaned_sequences << ">" << i->name << "\n";
             cleaned_sequences << i->sequence << "\n";
         }
+	if (contained_repeats.find(i->name) != contained_repeats.end()){
+	    repeating << ">" << i->name << "\t";
+            std::vector<mapping> info = repeating_reads[i->name];
+            std::sort(info.begin(), info.end(), sort_function);
+            int j = 1;
+            if (info[0].seq_start == info[1].seq_start && info[0].seq_end == info[1].seq_end) {
+                j = 0;
+            }
+	    std::set<std::tuple<uint32_t, uint32_t>> written;
+            while (j < info.size()) {
+                std::tuple<uint32_t, uint32_t> tup = std::make_tuple(info[j].seq_start, info[j].seq_end);
+                if (written.find(tup) == written.end()) {
+                    repeating << std::get<0>(tup) << " " << std::get<1>(tup) << "\t";
+                    written.emplace(tup);
+                }
+                j++;
+            }
+            repeating << "\n";
+            repeating << i->sequence << "\n";
+	}
     }
 
     return 0;
