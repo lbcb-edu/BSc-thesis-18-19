@@ -98,44 +98,6 @@ hist(data_pla$None / data_pla$Total * 100,
 ###  ROC CURVE  ###
 ###################
 
-# true and false negative - chromosomes
-x <- c()
-y <- c()
-i = 0
-
-while (i < 1.05) { 
-  data_cut <- data_chromo[data_chromo$Chromosome / data_chromo$Total >= i,]
-  num_cut <- nrow(data_cut)
-  perc1 <- round((num_cut + frag_num_chromo-frag_gt_0_chromo) / frag_num_chromo * 100, 2)
-  x <- c(x, i*100)
-  y <- c(y, perc1)
-  i <- i + 0.05
-}
-
-plot(x, y, ylim=c(0,100), xlab='Xc', ylab='% classified as chromosome', type = "o")
-lines(x, y, type = "o", col = "blue")
-
-TN <- y
-
-
-x <- c()
-y <- c()
-i = 0
-
-while (i < 1.05) { 
-  data_cut <- data_pla[data_pla$Chromosome / data_pla$Total >= i,]
-  num_cut <- nrow(data_cut)
-  perc1 <- round(num_cut / frag_num_pla * 100, 2)
-  x <- c(x, i*100)
-  y <- c(y, perc1)
-  i <- i + 0.05
-}
-
-lines(x, y, type = "o", col = "red")
-
-FN <- y
-
-
 # true and false positive - plasmids
 x <- c()
 y <- c()
@@ -170,14 +132,55 @@ while (i < 1.05) {
 }
 
 lines(x, y, type = "o", col = "blue")
+legend("left", c("True positive", "False positive"), cex=1.0, fill=c("red", "blue"))
 
 FP <- y
+
+
+# true and false negative - chromosomes
+x <- c()
+y <- c()
+i = 0
+
+while (i < 1.05) { 
+  data_cut <- data_chromo[data_chromo$Chromosome / data_chromo$Total >= i,]
+  num_cut <- nrow(data_cut)
+  perc1 <- round((num_cut + frag_num_chromo-frag_gt_0_chromo) / frag_num_chromo * 100, 2)
+  x <- c(x, i*100)
+  y <- c(y, perc1)
+  i <- i + 0.05
+}
+
+plot(x, y, ylim=c(0,100), xlab='Xc', ylab='% classified as chromosome', type = "o")
+lines(x, y, type = "o", col = "blue")
+
+TN <- y
+
+
+x <- c()
+y <- c()
+i = 0
+
+while (i < 1.05) { 
+  data_cut <- data_pla[data_pla$Chromosome / data_pla$Total >= i,]
+  num_cut <- nrow(data_cut)
+  perc1 <- round(num_cut / frag_num_pla * 100, 2)
+  x <- c(x, i*100)
+  y <- c(y, perc1)
+  i <- i + 0.05
+}
+
+lines(x, y, type = "o", col = "red")
+legend("left", c("True negative", "False negative"), cex=1.0, fill=c("blue", "red"))
+
+FN <- y
 
 
 # ROC curve (plasmids being true positive)
 sensitivity <- 1 - TP / (TP + FN)
 specificity <- 1 - TN / (TN + FP)
 
-plot(specificity, sensitivity, type = "n", main="ROC Curve for Plasmids", xlab="True Positive Rate", ylab="True Negative Rate")
+plot(specificity, sensitivity, type = "n", main="ROC Curve for Plasmid Prediction", xlab="True Negative Rate", ylab="True Positive Rate")
 lines(specificity, sensitivity, col = "purple", lwd=5)
+
 
