@@ -1,0 +1,4 @@
+[submodule "python-scripts/samscripts"]
+	path = python-scripts/samscripts
+	url = https://github.com/isovic/samscripts
+

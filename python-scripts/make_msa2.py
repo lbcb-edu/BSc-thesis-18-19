@@ -30,11 +30,12 @@ for filename in os.listdir(fq_folder):
 		consensus_filename = os.path.join(spoa_folder, fname + '.consensus')
 		msa_filename = os.path.join(spoa_folder, fname + '.msa')
 		matrix_filename = os.path.join(spoa_folder, fname + '.matrix')
-
-		# Find max len of sequences
-		cmd = 'python /home/sanja/Desktop/zavrsniRad/za_skosier2/scripts/samscripts/src/fastqfilter.py length_distribution %s' % (fq_filename)
-		sys.stderr.write('\nRUNNING COMMAND: %s' % cmd)
-		(status, output) = commands.getstatusoutput(cmd)
+        
+        filterPath = os.path.join(os.getcwd(), 'samscripts/src/fastqfilter.py')
+        string = 'python %s' % filterPath
+        cmd = string + ' length_distribution %s' % fq_filename
+        sys.stderr.write('\nRUNNING COMMAND: %s' % cmd)
+        (status, output) = commands.getstatusoutput(cmd)
         mydict = {}        
         for line in output.splitlines():
             x=line.split()
