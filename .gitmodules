@@ -2,3 +2,6 @@
 	path = python-scripts/samscripts
 	url = https://github.com/isovic/samscripts
 
+[submodule "vendor/spoa"]
+	path = vendor/spoa
+	url = https://github.com/rvaser/spoa
