@@ -1,0 +1,2 @@
+#define lormap_VERSION_MAJOR @lormap_VERSION_MAJOR@
+#define lormap_VERSION_MINOR @lormap_VERSION_MINOR@

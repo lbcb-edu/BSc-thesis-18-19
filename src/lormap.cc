@@ -18,7 +18,7 @@
 #include <cstring>
 #include <chrono>
 
-#include "long_reads_mapper.hpp"
+#include "lormap.hpp"
 #include "bioparser/bioparser.hpp"
 #include "thread_pool/thread_pool.hpp"
 #include "ksw2.h"
@@ -44,7 +44,7 @@ const std::unordered_set<std::string> fastq_formats = {".fastq", ".fq", ".fastq.
 
 std::map<char, char> complement_map = {{'C', 'G'}, {'A', 'T'}, {'T', 'A'}, {'U', 'A'}, {'G', 'C'}};
 
-
+//Program parameters
 uint32_t k_value = 1000;
 float f = 0.001f;
 float percentage = 0.5f;
@@ -88,9 +88,12 @@ static struct option long_options[] = {
   {NULL, no_argument, NULL, 0}
 };
 
+/**
+ * Prints information about program
+ */
 void help(void) {
-  printf("long_reads_mapper - for mapping long fragments on reference genome.\n\n"
-         "Usage: long_reads_mapper [OPTIONS] [file1 file2]\n"
+  printf("lormap - for mapping long fragments on reference genome.\n\n"
+         "Usage: lormap [OPTIONS] [file1 file2]\n"
          "file1 - FASTA file containing reference genome\n\n"
          "file2 - FASTA/FASTQ file containing a set of fragments\n"
          "Supported file extensions: .fasta\n"
@@ -143,13 +146,22 @@ void help(void) {
   );
 }
 
+/**
+ * Prints program version
+ */
 void version(void) {
-  printf("brown_mapper %d.%d\n",
-    long_reads_mapper_VERSION_MAJOR,
-    long_reads_mapper_VERSION_MINOR
-  );
+  printf("lormap %d.%d\n",
+    lormap_VERSION_MAJOR,
+    lormap_VERSION_MINOR);
 }
 
+/**
+ * Method checks if given filename contains any of the given extension
+ * 
+ * @param filename  name of file
+ * @param extensions  set of extensions to check
+ * @return  true if file contains given extension
+ */
 bool check_extension(const std::string& filename, const std::unordered_set<std::string>& extensions) {
   for (const auto& it : extensions) {
     if (filename.size() > it.size()) {
@@ -161,6 +173,14 @@ bool check_extension(const std::string& filename, const std::unordered_set<std::
   return false;
 }
 
+/**
+ * Method returns reverse complement of given sequence
+ * 
+ * @param original  sequence
+ * @param pos  starting position
+ * @param length  length of sequence
+ * @return reverse complement of sequence
+ */
 std::string reverse_complement(const std::string& original, unsigned int pos, unsigned int length) {
   std::string rc(original.begin() + pos, original.begin() + pos + length);
   unsigned int j = pos + length - 1;
@@ -170,6 +190,11 @@ std::string reverse_complement(const std::string& original, unsigned int pos, un
   return rc;
 }
 
+/**
+ * Method that performst mapping and aligment
+ * 
+ * @return  string containing results 
+ */
 std::string mapping(
     const std::vector<minimizer>& t_minimizers,
     const std::unordered_map<unsigned int, minimizer_index_t>& ref_index,
@@ -340,10 +365,10 @@ std::string mapping(
 
     unsigned int region_size = sequence_length / k_value;    
 
-    std::vector<region_hits> start_hits_top = find_top_3(start_hits_region, min_hits);
-    std::vector<region_hits> start_hits_top_rev = find_top_3(start_hits_region_rev, min_hits);
-    std::vector<region_hits> end_hits_top = find_top_3(end_hits_region, min_hits);
-    std::vector<region_hits> end_hits_top_rev = find_top_3(end_hits_region_rev, min_hits);
+    std::vector<region_hits> start_hits_top = find_top_15(start_hits_region, min_hits);
+    std::vector<region_hits> start_hits_top_rev = find_top_15(start_hits_region_rev, min_hits);
+    std::vector<region_hits> end_hits_top = find_top_15(end_hits_region, min_hits);
+    std::vector<region_hits> end_hits_top_rev = find_top_15(end_hits_region_rev, min_hits);
 
     int hits_number = 0;
     unsigned int starting_region = 0;
@@ -520,6 +545,9 @@ std::string mapping(
   return result;
 }
 
+/**
+ * Main function
+ */
 int main (int argc, char **argv) {
   int optchr;
 

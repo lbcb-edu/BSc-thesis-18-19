@@ -46,7 +46,7 @@ std::unordered_map<unsigned int, int> parse_hits_map(std::vector<minimizer_hit_t
   return result;
 }
 
-std::vector<region_hits> find_top_3(std::unordered_map<unsigned int, int>& map, int threshold){
+std::vector<region_hits> find_top_15(std::unordered_map<unsigned int, int>& map, int threshold){
   std::vector<region_hits> result;
     for (auto& it: map) {
       if(it.second < threshold) continue;

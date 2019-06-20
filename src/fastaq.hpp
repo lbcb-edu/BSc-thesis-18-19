@@ -7,6 +7,9 @@
 
 #include "bioparser/bioparser.hpp"
 
+/**
+ * Class that represents FASTA and FASTAQ format
+ */
 class FastAQ {
 public:
   std::string name;
@@ -26,6 +29,9 @@ public:
       this->quality = {quality, quality_length};
   }
 
+  /**
+   * Method print statistics about file
+   */
   static void print_statistics(const std::vector<std::unique_ptr<FastAQ>> &fastaq_objects, const std::string file) {
       uint32_t num = fastaq_objects.size();
       double average = 0;

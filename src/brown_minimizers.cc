@@ -166,12 +166,12 @@ std::vector<triplet_t> minimizers(
     unsigned int window_length) {
 
   if (k > 16) {
-    fprintf(stderr, "[brown::minimizers] error: Largest supported value for k is 16!\n"
+    fprintf(stderr, "[lormap] error: Largest supported value for k is 16!\n"
                     "  k = %d.\n", k);
     exit(1);
   }
   if (sequence_length < window_length + k - 1) {
-    fprintf(stderr, "[brown::minimizers] error: Sequence length too short for given parameters!\n"
+    fprintf(stderr, "[lormap] error: Sequence length too short for given parameters!\n"
                     "  Length = %d, k = %d, window length = %d.\n",
         sequence_length, k, window_length);
     exit(1);

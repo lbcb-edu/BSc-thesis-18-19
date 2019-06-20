@@ -1,6 +1,6 @@
-# Long_reads_mapper
+# LORMAP
 
-Long_reads_mapper is C++ implementation for mapping long reads. 
+LORMAP is C++ implementation for mapping long reads. 
 
 ## Dependencies
 
@@ -13,25 +13,25 @@ Application uses following software:
 
 ## Installation
 
-To install Long_reads_mapper run the following commands:
+To install LORMAP run the following commands:
 
 ```bash
-git clone --recursive --single-branch -b kpongracic https://github.com/lbcb-edu/BSc-thesis-18-19.git long_reads_mapper
-cd long_reads_mapper
+git clone --recursive --single-branch -b kpongracic https://github.com/lbcb-edu/BSc-thesis-18-19.git lormap
+cd lormap
 mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release ..
 make
 ```
 
-After running make, an executable named `long_read_mapper` will appear in the `build` directory.
+After running make, an executable named `lormap` will appear in the `build` directory.
 
 ## Usage
 
-Usage of long_read_mapper is as following:
+Usage of LORMAP is as following:
 
 ```bash
-./long_read_mapper [OPTIONS] <reference> <sequences>
+./lormap [OPTIONS] <reference> <sequences>
 	
     <reference>
         FASTA file containing reference genome (can be compressed with gzip)
