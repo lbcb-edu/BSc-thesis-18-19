@@ -183,10 +183,10 @@ namespace OSALG_vector {
 					}
 				} else {
 					if(d_mat[i][j] == f2_mat[i][j]) {
-						del_mode1 = true;
+						del_mode2 = true;
 						continue;
 					} else if(d_mat[i][j] == f1_mat[i][j]) {
-						del_mode2 = true;
+						del_mode1 = true;
 						continue;
 					} else if(d_mat[i][j] == (((first_half_diags) ? d_mat[i - 1][j - 1] : d_mat[i - 1][j]) + u[0])) {
 						parent = INSERT;
