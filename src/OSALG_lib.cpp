@@ -273,7 +273,7 @@ namespace OSALG {
 		}
 
 		SAVE2_type p_last;
-		adr_function(p_last, seq1.length(), seq2.length(), row[current_row_index], primary_list);
+		adr_function(p_last, seq1.length(), seq2.length(), row[previous_row_index], primary_list);
 
 		construct_CIGAR(primary_list, cigar, seq1, seq2, extended_cigar);
 
