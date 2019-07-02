@@ -4,9 +4,13 @@ Final BSc thesis is a course held at University of Zagreb, Faculty of Electrical
 
 ## Installation
 
-Clone repository and update submodules with:
+Clone repository, update submodules and build files with:
 ```bash
 git submodule update --init --recursive
+mkdir build
+cd build/
+cmake -DCMAKE_BUILD_TYPE=Release ..
+make
 ```
 
 ## Usage
@@ -17,7 +21,19 @@ Run:
 ```python
 python make_msa2.py <folder_with_fastq_files>
 ```
+You will find new spoa_folder with generated .msa files.
+Position yourself within /build folder and run:
 
+```bash
+./bin/zavrsni <path_to_.msa_file> <path_to_appropriate_fastqFile>
+```
+
+## Usage
+
+After building, executable file is located in /bin folder as detection. For detecting chimeric and repeating reads and create .fasta files with separated and annotated reads run:
+```bash
+./bin/detection file_with_mappings.paf reads.fasta
+```
 
 ## Disclaimer
 
