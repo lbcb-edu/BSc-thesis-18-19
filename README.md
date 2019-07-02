@@ -4,9 +4,13 @@ Final BSc thesis is a course held at University of Zagreb, Faculty of Electrical
 
 ## Installation
 
-Clone repository and update submodules with:
+After cloning repository, update submodules and build files with:
 ```bash
 git submodule update --init --recursive
+mkdir build
+cd build/
+cmake -DCMAKE_BUILD_TYPE=Release ..
+make
 ```
 
 ## Usage
@@ -17,8 +21,15 @@ Run:
 ```python
 python make_msa2.py <folder_with_fastq_files>
 ```
+You will find new spoa_folder with generated .msa files.
 
+Position yourself within newly /build folder and run:
+
+```bash
+./bin/zavrsni <path_to_.msa_file> <path_to_appropriate_fastqFile>
+```
 
 ## Disclaimer
 
 Laboratory for Bioinformatics and Computational Biology cannot be held responsible for any copyright infringement caused by actions of students contributing to any of its repositories. Any case of copyright infringement will be promptly removed from the affected repositories and reported to appropriate faculty organs.
+
