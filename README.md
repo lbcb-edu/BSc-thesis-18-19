@@ -29,13 +29,6 @@ Position yourself within newly /build folder and run:
 ./bin/zavrsni <path_to_.msa_file> <path_to_appropriate_fastqFile>
 ```
 
-## Usage
-
-After building, executable file is located in /bin folder as detection. For detecting chimeric and repeating reads and create .fasta files with separated and annotated reads run:
-```bash
-./bin/detection file_with_mappings.paf reads.fasta
-```
-
 ## Disclaimer
 
 Laboratory for Bioinformatics and Computational Biology cannot be held responsible for any copyright infringement caused by actions of students contributing to any of its repositories. Any case of copyright infringement will be promptly removed from the affected repositories and reported to appropriate faculty organs.
