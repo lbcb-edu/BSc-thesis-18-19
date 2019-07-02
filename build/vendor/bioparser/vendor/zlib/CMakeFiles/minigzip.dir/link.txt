@@ -1,0 +1,1 @@
+/usr/bin/cc   -rdynamic CMakeFiles/minigzip.dir/test/minigzip.o  -o ../../bin/minigzip -Wl,-rpath,/home/sanja/FER/Team_zavrsni/BSc-thesis-18-19/build/vendor/bioparser/lib ../../lib/libz.so.1.2.11 

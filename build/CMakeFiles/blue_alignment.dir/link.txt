@@ -1,0 +1,2 @@
+/usr/bin/ar qc lib/libblue_alignment.a  CMakeFiles/blue_alignment.dir/src/blue_alignment.cpp.o
+/usr/bin/ranlib lib/libblue_alignment.a

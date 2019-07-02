@@ -1,0 +1,38 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/sanja/FER/Team_zavrsni/BSc-thesis-18-19/src/blue_alignment.cpp
+blue_alignment.hpp
+/home/sanja/FER/Team_zavrsni/BSc-thesis-18-19/src/blue_alignment.hpp
+iostream
+-
+stdlib.h
+-
+ctype.h
+-
+string
+-
+vector
+-
+stdio.h
+-
+
+/home/sanja/FER/Team_zavrsni/BSc-thesis-18-19/src/blue_alignment.hpp
+iostream
+-
+stdlib.h
+-
+ctype.h
+-
+string
+-
+vector
+-
+stdio.h
+-
+

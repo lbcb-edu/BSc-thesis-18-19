@@ -1,0 +1,1 @@
+/usr/bin/c++   -Wall -Wextra -pedantic -march=native  -rdynamic CMakeFiles/zavrsni.dir/src/zavrsni.cpp.o  -o bin/zavrsni vendor/spoa/lib/libspoa.a lib/libblue_alignment.a vendor/bioparser/lib/libz.a 
