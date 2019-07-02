@@ -22,7 +22,8 @@ Run:
 python make_msa2.py <folder_with_fastq_files>
 ```
 You will find new spoa_folder with generated .msa files.
-Position yourself within /build folder and run:
+
+Position yourself within newly /build folder and run:
 
 ```bash
 ./bin/zavrsni <path_to_.msa_file> <path_to_appropriate_fastqFile>
