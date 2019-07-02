@@ -4,7 +4,7 @@ Final BSc thesis is a course held at University of Zagreb, Faculty of Electrical
 
 ## Installation
 
-Clone repository, update submodules and build files with:
+After cloning repository, update submodules and build files with:
 ```bash
 git submodule update --init --recursive
 mkdir build
