@@ -4,6 +4,8 @@ GraphMap is a C++ implementation of a sequence to de Brujin graph mapper. For ea
 
 # Dependencies
 
+Linux
+
 1. gcc 4.8+
 2. cmake 3.2+
 
