@@ -41,11 +41,6 @@ GraphMap takes two imputs:
 
 GraphAligner outputs a subgraph for each sequence as a seperate file in FASTA format.
 
-# Input data test examples
-
-Escherichia coli str. K-12 substr. MG1655
-  - [reference genome][ref]
-
 # Final BSc thesis (computer science - 2018/2019)
 
 Final BSc thesis is a course held at University of Zagreb, Faculty of Electrical Engineering and Computing in the sixth semester of the undergraduate study. The main focus is to apply knowledge and skills obtained from Software Design Project course to recreate or improve existing methods which are widely used in bioinformatics. Under the supervision of prof. Mile Šikić, students will implement one such algorithm, thoroughly test it on simulated and real data, and formally encapsulate the whole process by writing and defending a thesis. Each student will have access to a private branch of this repository, on which this README will be updated with the specific task.
@@ -56,5 +51,4 @@ Laboratory for Bioinformatics and Computational Biology cannot be held responsib
 
 [gl]: https://github.com/maickrau/GraphAligner
 [fasta]: https://en.wikipedia.org/wiki/FASTA_format
-[ref]: https://www.ncbi.nlm.nih.gov/genome/167
 
