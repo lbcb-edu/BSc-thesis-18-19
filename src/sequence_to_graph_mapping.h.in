@@ -1,0 +1,2 @@
+#define sequence_to_graph_mapping_VERSION_MAJOR @sequence_to_graph_mapping_VERSION_MAJOR@
+#define sequence_to_graph_mapping_VERSION_MINOR @sequence_to_graph_mapping_VERSION_MINOR@ 
