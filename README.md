@@ -28,7 +28,7 @@ After running the commands, the executable file will be created in `build/bin`.
 
 In order to map sequences use the following command:
 ```bash 
-graphmap graph.fa reads.fa / reads.fq
+graphmap graph.fa reads.fa/reads.fq
 ```
 
 # Input
