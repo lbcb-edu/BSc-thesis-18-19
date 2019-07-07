@@ -24,10 +24,6 @@ make
 
 After running the commands, the executable file will be created in `build/bin`.
 
-# Input
-
-GraphAligner outputs mappings in the [FASTA format][fasta].
-
 # Usage
 
 In order to map sequences use the following command:
