@@ -14,7 +14,7 @@ MapToGraph is a C++ implementation of a sequence to de Brujin graph mapper. For 
 In order to build MapToGraph from source run the following commands:
 
 ```bash
-git clone --recursive --single-branch -b dbatic https://github.com/lbcb-edu/BSc-thesis-18-19.git GraphMap
+git clone --recursive --single-branch -b dbatic https://github.com/lbcb-edu/BSc-thesis-18-19.git MapToGraph
 cd MapToGraph
 mkdir build
 cd build

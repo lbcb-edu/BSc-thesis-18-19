@@ -2374,7 +2374,7 @@ int main (int argc, char* argv[])
 
 //-----------------------------------------------UCITAVANJE_PATHOVA-------------------------------------------------------------------------------------------------------------------
 
-	std::string path_for_GraphAligner;
+/*	std::string path_for_GraphAligner;
         std::string path_for_bcalm;
         std::string path_for_bcalm_convert_to_gfa;
         std::string path_for_pbsim;
@@ -2422,7 +2422,7 @@ int main (int argc, char* argv[])
         }
 
 	//printf("\nPaths:\n%s\n%s\n%s\n%s\n%s\n", path_for_GraphAligner.c_str(), path_for_bcalm.c_str(), path_for_bcalm_convert_to_gfa.c_str(), path_for_pbsim.c_str(), path_for_pbsim_model.c_str());
-
+*/
 //-----------------------------------------------KONSTRUKCIJA_GRAFA-------------------------------------------------------------------------------------------------------------------
 
 	// program name
