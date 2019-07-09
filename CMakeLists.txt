@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.2)
-project (GraphMap)
+project (MapToGraph)
 
 set (sequence_to_graph_mapping_VERSION_MAJOR 1)
 set (sequence_to_graph_mapping_VERSION_MINOR 0)
@@ -27,8 +27,8 @@ include_directories("${PROJECT_BINARY_DIR}/bin")
 add_subdirectory (vendor/bioparser EXCLUDE_FROM_ALL)
 add_subdirectory(vendor/thread_pool EXCLUDE_FROM_ALL)
 
-add_executable (graphmap src/sequence_to_graph_mapping.cxx)
-target_link_libraries (graphmap bioparser white_minimizers thread_pool pthread)
+add_executable (maptograph src/sequence_to_graph_mapping.cxx)
+target_link_libraries (maptograph bioparser white_minimizers thread_pool pthread)
 
 #if (sequence_to_graph_mapping_build_tests)
 #        include_directories(${PROJECT_SOURCE_DIR}/src)

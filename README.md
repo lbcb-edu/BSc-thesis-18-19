@@ -1,6 +1,6 @@
 # Introduction
 
-GraphMap is a C++ implementation of a sequence to de Brujin graph mapper. For each sequence it finds a subgraph in the original de Brujin graph to which the sequence maps. The mapper is still in early stages of development. Final version should map sequences to subgraphs using [GraphAligner][gl]. The implementation was made as a part of my Final BSc thesis.
+MapToGraph is a C++ implementation of a sequence to de Brujin graph mapper. For each sequence it finds a subgraph in the original de Brujin graph to which the sequence maps. The mapper is still in early stages of development. Final version should map sequences to subgraphs using [GraphAligner][gl]. The implementation was made as a part of my Final BSc thesis.
 
 # Dependencies
 
@@ -9,11 +9,11 @@ GraphMap is a C++ implementation of a sequence to de Brujin graph mapper. For ea
 
 # Installation
 
-In order to build GraphMap from source run the following commands:
+In order to build MapToGraph from source run the following commands:
 
 ```bash
 git clone --recursive --single-branch -b dbatic https://github.com/lbcb-edu/BSc-thesis-18-19.git GraphMap
-cd GraphMap
+cd MapToGraph
 mkdir build
 cd build
 cmake -DCMAKE_BUILD_TYPE=Release ..
