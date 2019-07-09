@@ -28,12 +28,12 @@ After running the commands, the executable file will be created in `build/bin`.
 
 In order to map sequences use the following command:
 ```bash 
-graphmap graph.fa reads.fa/reads.fq
+maptograph graph.fa reads.fa/reads.fq
 ```
 
 # Input
 
-GraphMap takes two imputs:
+MapToGraph takes two imputs:
 - a de Brujin graph in FASTA format
 - reads in FASTA or FASTQ format
 
